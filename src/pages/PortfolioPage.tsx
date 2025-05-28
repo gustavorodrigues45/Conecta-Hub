@@ -60,7 +60,7 @@ const PortfolioPage: React.FC = () => {
         {projetos.map((projeto) => (
           <Link to={`/portfolio/${projeto.projeto_id}`} key={projeto.projeto_id} className="block bg-white rounded-2xl shadow-card overflow-hidden group transform transition-all hover:shadow-xl hover:-translate-y-1">
             <div className="relative">
-              <img src={projeto.imagem_capa} alt={projeto.titulo} className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105" />
+              <img src={`http://localhost:5000/${projeto.imagem_capa}`} alt={projeto.titulo} className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
               <div className="absolute bottom-0 left-0 p-4">
                 <div className="flex items-center mb-1">

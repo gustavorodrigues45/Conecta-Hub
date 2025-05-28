@@ -10,6 +10,7 @@ const CadastroPage: React.FC = () => {
     const [tipoUsuario, setTipoUsuario] = useState<'designer' | 'programador' | ''>('');
     const [github, setGithub] = useState('');
     const [googleDrive, setGoogleDrive] = useState('');
+    const [fotoPerfil, setFotoPerfil] = useState<File | null>(null);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const navigate = useNavigate();
@@ -26,13 +27,21 @@ const CadastroPage: React.FC = () => {
         }
         setError('');
         try {
-            const response = await axios.post('/usuarios', {
-                nome,
-                email,
-                senha,
-                tipo: tipoUsuario,
-                github,
-                google_drive: googleDrive,
+            const formData = new FormData();
+            formData.append('nome', nome);
+            formData.append('email', email);
+            formData.append('senha', senha);
+            formData.append('tipo', tipoUsuario);
+            formData.append('github', github);
+            formData.append('google_drive', googleDrive);
+            if (fotoPerfil) {
+                formData.append('foto_perfil', fotoPerfil);
+            }
+
+            const response = await axios.post('/usuarios', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
             });
             setSuccess('Usuário cadastrado com sucesso!');
             console.log(response.data);
@@ -131,6 +140,16 @@ const CadastroPage: React.FC = () => {
                             value={googleDrive}
                             onChange={(e) => setGoogleDrive(e.target.value)}
                             className="w-full px-4 py-3 rounded-xl border-2 border-brand-purple bg-white text-brand-text placeholder-gray-500 focus:ring-2 focus:ring-brand-yellow outline-none shadow-sm"
+                        />
+                    </div>
+                    <div className="mb-4">
+                        <label htmlFor="fotoPerfil" className="block text-sm font-medium text-gray-700">Foto de Perfil</label>
+                        <input
+                            type="file"
+                            id="fotoPerfil"
+                            accept="image/*"
+                            onChange={(e) => setFotoPerfil(e.target.files ? e.target.files[0] : null)}
+                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-brand-purple focus:border-brand-purple sm:text-sm"
                         />
                     </div>
                     <div>

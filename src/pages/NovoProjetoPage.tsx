@@ -6,12 +6,12 @@ const NovoProjetoPage: React.FC = () => {
   const [formData, setFormData] = useState({
     titulo: '',
     descricao: '',
-    imagem_capa: '',
     link_figma: '',
     link_github: '',
     link_drive: '',
     briefing_id: ''
   });
+  const [file, setFile] = useState<File | null>(null);
   const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -19,13 +19,34 @@ const NovoProjetoPage: React.FC = () => {
     setFormData({ ...formData, [name]: value });
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setFile(e.target.files[0]);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const data = new FormData();
+    data.append('titulo', formData.titulo);
+    data.append('descricao', formData.descricao);
+    data.append('link_figma', formData.link_figma);
+    data.append('link_github', formData.link_github);
+    data.append('link_drive', formData.link_drive);
+    data.append('briefing_id', formData.briefing_id);
+    if (file) {
+      data.append('imagem_capa', file);
+    }
+
     try {
-      const response = await axios.post('/projetos', formData);
+      const response = await axios.post('/projetos', data, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
       alert('Projeto criado com sucesso!');
       console.log(response.data);
-      navigate('/portfolio'); // Redirect to portfolio or project detail page
+      navigate('/portfolio');
     } catch (error) {
       console.error('Erro ao criar projeto:', error);
       alert('Erro ao criar projeto.');
@@ -61,13 +82,11 @@ const NovoProjetoPage: React.FC = () => {
           />
         </div>
         <div>
-          <label htmlFor="imagem_capa" className="block text-sm font-medium text-brand-purple-dark mb-1">Imagem de Capa (URL)</label>
+          <label htmlFor="imagem_capa" className="block text-sm font-medium text-brand-purple-dark mb-1">Imagem de Capa</label>
           <input
-            type="text"
+            type="file"
             id="imagem_capa"
-            name="imagem_capa"
-            value={formData.imagem_capa}
-            onChange={handleChange}
+            onChange={handleFileChange}
             className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-purple focus:border-transparent outline-none"
           />
         </div>

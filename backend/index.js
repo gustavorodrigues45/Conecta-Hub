@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const { Pool } = require('pg');
+const multer = require('multer');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -29,18 +31,35 @@ pool.connect((err) => {
     }
 });
 
+// Configure multer for file uploads
+const upload = multer({
+    storage: multer.diskStorage({
+        destination: (req, file, cb) => {
+            cb(null, 'uploads/'); // Diretório onde os arquivos serão salvos
+        },
+        filename: (req, file, cb) => {
+            cb(null, `${Date.now()}-${file.originalname}`); // Nome único para o arquivo
+        },
+    }),
+});
+
+// Servir a pasta uploads como estática
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Routes
 app.get('/', (req, res) => {
     res.send('Backend is running');
 });
 
 // Rotas para a tabela usuario
-app.post('/usuarios', async (req, res) => {
+// Update the user registration route to handle image uploads
+app.post('/usuarios', upload.single('foto_perfil'), async (req, res) => {
     const { nome, email, senha, tipo, github, google_drive } = req.body;
+    const fotoPerfilPath = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename.replace(/\\/g, '/')}` : null; // Ensure forward slashes
     try {
         const result = await pool.query(
-            'INSERT INTO usuario (nome, email, senha, tipo, github, google_drive) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-            [nome, email, senha, tipo, github, google_drive]
+            'INSERT INTO usuario (nome, email, senha, tipo, github, google_drive, foto_perfil) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+            [nome, email, senha, tipo, github, google_drive, fotoPerfilPath]
         );
         res.status(201).json(result.rows[0]);
     } catch (err) {
@@ -104,9 +123,12 @@ app.get('/briefings', async (req, res) => {
 });
 
 // Rotas para a tabela projeto
-app.post('/projetos', async (req, res) => {
-    const { titulo, descricao, imagem_capa, link_figma, link_github, link_drive, briefing_id } = req.body;
-    console.log('Dados recebidos para criar projeto:', req.body);
+app.post('/projetos', upload.single('imagem_capa'), async (req, res) => {
+    console.log('Dados recebidos no body:', req.body); // Log para verificar o body
+    console.log('Arquivo recebido:', req.file); // Log para verificar o arquivo
+
+    const { titulo, descricao, link_figma, link_github, link_drive, briefing_id } = req.body;
+    const imagemCapaPath = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename.replace(/\\/g, '/')}` : null; // Replace backslashes with forward slashes
 
     // Converta briefing_id vazio para NULL
     const briefingIdValue = briefing_id === '' ? null : briefing_id;
@@ -114,7 +136,7 @@ app.post('/projetos', async (req, res) => {
     try {
         const result = await pool.query(
             'INSERT INTO projeto (titulo, descricao, imagem_capa, link_figma, link_github, link_drive, briefing_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-            [titulo, descricao, imagem_capa, link_figma, link_github, link_drive, briefingIdValue]
+            [titulo, descricao, imagemCapaPath, link_figma, link_github, link_drive, briefingIdValue]
         );
         console.log('Projeto criado com sucesso:', result.rows[0]);
         res.status(201).json(result.rows[0]);
