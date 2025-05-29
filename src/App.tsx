@@ -11,6 +11,7 @@ import ProjectDetailPage from './pages/ProjectDetailPage';
 import VagaDetailPage from './pages/VagaDetailPage';
 import ConexaoPage from './pages/ConexaoPage';
 import NovoProjetoPage from './pages/NovoProjetoPage';
+import { UserProvider } from './context/UserContext'; // Import UserProvider
 // Import other pages as they are created
 import axios from 'axios';
 
@@ -18,22 +19,24 @@ axios.defaults.baseURL = 'http://localhost:5000'; // Configuração da URL base 
 
 function App() {
   return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/cadastro" element={<CadastroPage />} /> {/* Add route for CadastroPage */}
-        <Route path="/portfolio" element={<PortfolioPage />} />
-        <Route path="/portfolio/:projectId" element={<ProjectDetailPage />} />
-        <Route path="/portfolio/novo" element={<NovoProjetoPage />} />
-        <Route path="/vagas" element={<VagasPage />} />
-        <Route path="/vagas/:vagaId" element={<VagaDetailPage />} />
-        <Route path="/aprendizagem" element={<AprendizagemPage />} />
-        <Route path="/perfil/:userId" element={<UserProfilePage />} />
-        <Route path="/conexao" element={<ConexaoPage />} />
-        {/* Add other routes here */}
-      </Routes>
-    </Layout>
+    <UserProvider>
+      <Layout>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/cadastro" element={<CadastroPage />} /> {/* Add route for CadastroPage */}
+          <Route path="/portfolio" element={<PortfolioPage />} />
+          <Route path="/portfolio/:projectId" element={<ProjectDetailPage />} />
+          <Route path="/portfolio/novo" element={<NovoProjetoPage />} />
+          <Route path="/vagas" element={<VagasPage />} />
+          <Route path="/vagas/:vagaId" element={<VagaDetailPage />} />
+          <Route path="/aprendizagem" element={<AprendizagemPage />} />
+          <Route path="/perfil/:userId" element={<UserProfilePage />} />
+          <Route path="/conexao" element={<ConexaoPage />} />
+          {/* Add other routes here */}
+        </Routes>
+      </Layout>
+    </UserProvider>
   );
 }
 

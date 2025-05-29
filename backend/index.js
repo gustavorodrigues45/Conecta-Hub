@@ -55,7 +55,8 @@ app.get('/', (req, res) => {
 // Update the user registration route to handle image uploads
 app.post('/usuarios', upload.single('foto_perfil'), async (req, res) => {
     const { nome, email, senha, tipo, github, google_drive } = req.body;
-    const fotoPerfilPath = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename.replace(/\\/g, '/')}` : null; // Ensure forward slashes
+    // Salva apenas o caminho relativo, igual ao PortfolioPage
+    const fotoPerfilPath = req.file ? `uploads/${req.file.filename.replace(/\\/g, '/')}` : null;
     try {
         const result = await pool.query(
             'INSERT INTO usuario (nome, email, senha, tipo, github, google_drive, foto_perfil) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
@@ -128,7 +129,8 @@ app.post('/projetos', upload.single('imagem_capa'), async (req, res) => {
     console.log('Arquivo recebido:', req.file); // Log para verificar o arquivo
 
     const { titulo, descricao, link_figma, link_github, link_drive, briefing_id } = req.body;
-    const imagemCapaPath = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename.replace(/\\/g, '/')}` : null; // Replace backslashes with forward slashes
+    // Salva apenas o caminho relativo, igual ao PortfolioPage
+    const imagemCapaPath = req.file ? `uploads/${req.file.filename.replace(/\\/g, '/')}` : null;
 
     // Converta briefing_id vazio para NULL
     const briefingIdValue = briefing_id === '' ? null : briefing_id;

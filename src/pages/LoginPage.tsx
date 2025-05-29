@@ -1,24 +1,34 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useUser } from '../context/UserContext';
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [agreed, setAgreed] = useState(false);
   const navigate = useNavigate();
+  const { setUser } = useUser();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Dados enviados para login:', { email, password }); // Log para verificar os dados enviados
     if (agreed) {
       try {
-        console.log('Password value before Axios call:', password); // Debugging log
-        const response = await axios.post('/login', { email, senha: password }); // Ensure correct mapping
+        const response = await axios.post('/login', { email, senha: password });
+
+        // Verifica se o caminho da foto já contém a URL completa
+        const foto_perfil = response.data.usuario.foto_perfil;
+        let fotoPerfilFinal = foto_perfil;
+        if (foto_perfil && !foto_perfil.startsWith('http')) {
+          fotoPerfilFinal = foto_perfil.replace(/\\/g, '/');
+          fotoPerfilFinal = `http://localhost:5000/${fotoPerfilFinal}`;
+        }
+        const userData = { ...response.data.usuario, foto_perfil: fotoPerfilFinal };
+        // Salvar no localStorage e atualizar o contexto
+        localStorage.setItem('user', JSON.stringify(userData));
+        setUser(userData);
+
         alert('Login bem-sucedido!');
-        console.log(response.data);
-        // Simulate successful login and redirect
-        // In a real app, you'd set some auth state here
         navigate('/');
       } catch (error) {
         console.error('Erro ao realizar login:', error);

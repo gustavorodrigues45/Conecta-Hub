@@ -21,7 +21,7 @@ export default {
         'brand-text-secondary': '#555555', // Lighter text
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'Avenir', 'Helvetica', 'Arial', 'sans-serif'],
+        sans: ['"Patrick Hand"', 'cursive', 'sans-serif'],
         'patrick-hand': ['"Patrick Hand"', 'cursive'],
       },
       borderRadius: {
