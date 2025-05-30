@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useUser } from '../context/UserContext';
 
 const NovoProjetoPage: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -13,6 +14,7 @@ const NovoProjetoPage: React.FC = () => {
   });
   const [file, setFile] = useState<File | null>(null);
   const navigate = useNavigate();
+  const { user } = useUser();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -36,6 +38,9 @@ const NovoProjetoPage: React.FC = () => {
     data.append('briefing_id', formData.briefing_id);
     if (file) {
       data.append('imagem_capa', file);
+    }
+    if (user && user.usuario_id) {
+      data.append('usuario_id', String(user.usuario_id));
     }
 
     try {

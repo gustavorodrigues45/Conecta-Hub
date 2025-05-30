@@ -79,6 +79,22 @@ app.get('/usuarios', async (req, res) => {
     }
 });
 
+// Adicione a rota GET /usuarios/:id para buscar um usuário específico por ID
+app.get('/usuarios/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const result = await pool.query('SELECT * FROM usuario WHERE usuario_id = $1', [id]);
+        if (result.rows.length > 0) {
+            res.status(200).json(result.rows[0]);
+        } else {
+            res.status(404).json({ error: 'Usuário não encontrado' });
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Erro ao buscar usuário' });
+    }
+});
+
 // Adicione logs detalhados na rota POST /login
 app.post('/login', async (req, res) => {
     const { email, senha } = req.body;
@@ -128,17 +144,18 @@ app.post('/projetos', upload.single('imagem_capa'), async (req, res) => {
     console.log('Dados recebidos no body:', req.body); // Log para verificar o body
     console.log('Arquivo recebido:', req.file); // Log para verificar o arquivo
 
-    const { titulo, descricao, link_figma, link_github, link_drive, briefing_id } = req.body;
+    const { titulo, descricao, link_figma, link_github, link_drive, briefing_id, usuario_id } = req.body;
     // Salva apenas o caminho relativo, igual ao PortfolioPage
     const imagemCapaPath = req.file ? `uploads/${req.file.filename.replace(/\\/g, '/')}` : null;
 
     // Converta briefing_id vazio para NULL
     const briefingIdValue = briefing_id === '' ? null : briefing_id;
+    const usuarioIdValue = usuario_id === '' ? null : usuario_id;
 
     try {
         const result = await pool.query(
-            'INSERT INTO projeto (titulo, descricao, imagem_capa, link_figma, link_github, link_drive, briefing_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-            [titulo, descricao, imagemCapaPath, link_figma, link_github, link_drive, briefingIdValue]
+            'INSERT INTO projeto (titulo, descricao, imagem_capa, link_figma, link_github, link_drive, briefing_id, usuario_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+            [titulo, descricao, imagemCapaPath, link_figma, link_github, link_drive, briefingIdValue, usuarioIdValue]
         );
         console.log('Projeto criado com sucesso:', result.rows[0]);
         res.status(201).json(result.rows[0]);

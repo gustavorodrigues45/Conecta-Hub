@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 interface User {
+    usuario_id: number;
     nome: string;
     foto_perfil?: string;
 }

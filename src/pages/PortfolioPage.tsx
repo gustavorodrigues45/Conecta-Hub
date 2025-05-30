@@ -10,14 +10,25 @@ interface Projeto {
   link_figma?: string;
   link_github?: string;
   link_drive?: string;
-  userImg?: string;
-  user?: string;
   categoria?: string;
+  usuario_id?: number;
+  usuario_nome?: string;
+  usuario_foto?: string;
 }
 
 const SearchIcon = () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-gray-400"><path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>;
 const PlusIcon = () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 mr-2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>;
 
+const normalizeUserImage = (foto_perfil?: string) => {
+  if (!foto_perfil) return '/default-profile.png';
+  if (foto_perfil.startsWith('uploads/')) {
+    return `http://localhost:5000/${foto_perfil}`;
+  }
+  if (foto_perfil.startsWith('http')) {
+    return foto_perfil;
+  }
+  return `/default-profile.png`;
+};
 
 const PortfolioPage: React.FC = () => {
   const [projetos, setProjetos] = useState<Projeto[]>([]);
@@ -26,12 +37,39 @@ const PortfolioPage: React.FC = () => {
     const fetchProjetos = async () => {
       try {
         const response = await axios.get('/projetos');
-        setProjetos(response.data);
+        const projetosComUsuario = await Promise.all(
+          response.data.map(async (projeto: any) => {
+            if (projeto.usuario_id) {
+              try {
+                // Busca o usuário pelo ID diretamente
+                const usuarioRes = await axios.get(`/usuarios/${projeto.usuario_id}`);
+                const usuario = usuarioRes.data;
+                return {
+                  ...projeto,
+                  usuario_nome: usuario?.nome || 'Usuário',
+                  usuario_foto: normalizeUserImage(usuario?.foto_perfil),
+                };
+              } catch {
+                return {
+                  ...projeto,
+                  usuario_nome: 'Usuário',
+                  usuario_foto: '/default-profile.png',
+                };
+              }
+            } else {
+              return {
+                ...projeto,
+                usuario_nome: 'Usuário',
+                usuario_foto: '/default-profile.png',
+              };
+            }
+          })
+        );
+        setProjetos(projetosComUsuario);
       } catch (error) {
         console.error('Erro ao buscar projetos:', error);
       }
     };
-
     fetchProjetos();
   }, []);
 
@@ -64,8 +102,8 @@ const PortfolioPage: React.FC = () => {
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
               <div className="absolute bottom-0 left-0 p-4">
                 <div className="flex items-center mb-1">
-                  <img src={projeto.userImg} alt={projeto.user} className="w-6 h-6 rounded-full mr-2 border-2 border-white object-cover" />
-                  <span className="text-xs text-white font-medium">{projeto.user}</span>
+                  <img src={projeto.usuario_foto} alt={projeto.usuario_nome} className="w-8 h-8 rounded-full mr-2 border-2 border-white object-cover" />
+                  <span className="text-sm text-white font-semibold drop-shadow">{projeto.usuario_nome}</span>
                 </div>
               </div>
             </div>
