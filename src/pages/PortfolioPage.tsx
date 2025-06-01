@@ -7,6 +7,7 @@ interface Projeto {
   titulo: string;
   descricao: string;
   imagem_capa?: string;
+  imagens?: string[];  // Array para múltiplas imagens do projeto
   link_figma?: string;
   link_github?: string;
   link_drive?: string;
@@ -94,25 +95,46 @@ const PortfolioPage: React.FC = () => {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {projetos.map((projeto) => (
-          <Link to={`/portfolio/${projeto.projeto_id}`} key={projeto.projeto_id} className="block bg-white rounded-2xl shadow-card overflow-hidden group transform transition-all hover:shadow-xl hover:-translate-y-1">
-            <div className="relative">
-              <img src={`http://localhost:5000/${projeto.imagem_capa}`} alt={projeto.titulo} className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
-              <div className="absolute bottom-0 left-0 p-4">
-                <div className="flex items-center mb-1">
-                  <img src={projeto.usuario_foto} alt={projeto.usuario_nome} className="w-8 h-8 rounded-full mr-2 border-2 border-white object-cover" />
-                  <span className="text-sm text-white font-semibold drop-shadow">{projeto.usuario_nome}</span>
+      {/* Projetos */}
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Meus Projetos:</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          {projetos.map((projeto) => (
+            <a
+              key={projeto.projeto_id}
+              href={`/portfolio/${projeto.projeto_id}`}
+              className="block bg-purple-600 rounded-lg shadow-md overflow-hidden transform transition-transform hover:scale-105"
+            >
+              {/* Horizontal Image */}
+              <div className="w-full">
+                <img
+                  src={`http://localhost:5000/${projeto.imagem_capa || projeto.imagens?.[0]}`}
+                  alt={projeto.titulo}
+                  className="w-full h-32 object-cover"
+                />
+              </div>
+              {/* Content Below Image */}
+              <div className="flex">
+                {/* Left Section: User Details */}
+                <div className="w-1/3 flex flex-col items-center justify-center p-2">
+                  <img
+                    src={projeto.usuario_foto || '/default-profile.png'}
+                    alt={projeto.usuario_nome}
+                    className="w-8 h-8 rounded-full mb-2 object-cover border border-gray-300"
+                  />
+                  <p className="text-xs font-medium text-white text-center">{projeto.usuario_nome || 'Usuário'}</p>
+                </div>
+                {/* Divider */}
+                <div className="w-px bg-white"></div>
+                {/* Right Section: Project Details */}
+                <div className="w-2/3 p-2 text-white">
+                  <h3 className="text-sm font-semibold mb-1">{projeto.titulo}</h3>
+                  <p className="text-xs">{projeto.categoria || 'Sem categoria'}</p>
                 </div>
               </div>
-            </div>
-            <div className="p-4">
-              <h3 className="font-semibold text-brand-purple-dark text-lg truncate group-hover:text-brand-purple">{projeto.titulo}</h3>
-              <p className="text-sm text-brand-text-secondary">{projeto.categoria}</p>
-            </div>
-          </Link>
-        ))}
+            </a>
+          ))}
+        </div>
       </div>
       {/* Pagination can be added here */}
     </div>
