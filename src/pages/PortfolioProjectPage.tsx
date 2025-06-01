@@ -290,10 +290,16 @@ const PortfolioProjectPage: React.FC = () => {
                 <img
                     src={projeto.usuario_foto}
                     alt={projeto.usuario_nome}
-                    className="w-16 h-16 rounded-full mr-4 border-2 border-gray-300 object-cover"
+                    className="w-16 h-16 rounded-full mr-4 border-2 border-gray-300 object-cover cursor-pointer hover:border-brand-purple transition-colors"
+                    onClick={() => navigate(`/perfil/${projeto.usuario_id}`)}
                 />
                 <div>
-                    <h1 className="text-2xl font-bold">{projeto.usuario_nome}</h1>
+                    <h1
+                        className="text-2xl font-bold cursor-pointer hover:text-brand-purple transition-colors"
+                        onClick={() => navigate(`/perfil/${projeto.usuario_id}`)}
+                    >
+                        {projeto.usuario_nome}
+                    </h1>
                     <p className="text-sm text-gray-600">Estudante de Design Gráfico</p>
                 </div>
             </div>
@@ -585,13 +591,19 @@ const PortfolioProjectPage: React.FC = () => {
                                 <img
                                     src={normalizeUserImage(comentario.usuario_foto)}
                                     alt={comentario.usuario_nome}
-                                    className="w-10 h-10 rounded-full object-cover"
+                                    className="w-10 h-10 rounded-full object-cover cursor-pointer hover:border-2 hover:border-brand-purple transition-all"
+                                    onClick={() => navigate(`/perfil/${comentario.usuario_id}`)}
                                 />
                                 <div className="flex-1">
                                     <div className="bg-gray-50 rounded-lg p-4">
                                         <div className="flex justify-between items-start mb-2">
                                             <div>
-                                                <h3 className="font-semibold">{comentario.usuario_nome}</h3>
+                                                <h3
+                                                    className="font-semibold cursor-pointer hover:text-brand-purple transition-colors"
+                                                    onClick={() => navigate(`/perfil/${comentario.usuario_id}`)}
+                                                >
+                                                    {comentario.usuario_nome}
+                                                </h3>
                                                 <p className="text-sm text-gray-500">
                                                     {new Date(comentario.data_criacao).toLocaleDateString('pt-BR')}
                                                 </p>

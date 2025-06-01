@@ -1,76 +1,123 @@
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import axios from 'axios';
 
-// Placeholder data - replace with actual data source
-const mockVagas = [
-  { id: '1', title: 'Desenvolvimento de App – Vaga Freela em Equipe', companyLogo: '/src/assets/images/ecotask-logo.png', companyName: 'EcoTask', description: 'Estamos montando um time para desenvolver um app de produtividade colaborativa. Procuramos programadores (front e back), UI/UX designers e gerentes de projeto.', details: 'Projeto freela, com prazo de 3 meses. Trabalho remoto.', type: 'Freela', location: 'Remoto' },
-  { id: '2', title: 'Identidade Visual para Marca – Vaga Freela Individual', companyLogo: '/src/assets/images/avatar-rafael.png', companyName: 'Startup X', description: 'Preciso de um(a) designer criativo(a) para desenvolver a identidade visual da minha nova startup. Branding completo, com manual, logo e paleta de cores.', details: 'Projeto freela, com prazo de 40 dias.', type: 'Freela', location: 'Remoto' },
-  { id: '3', title: 'Cibersegurança – Vaga Fixa (Ciência da Computação)', companyLogo: '/src/assets/images/ecotask-logo.png', companyName: 'CyberCorp', description: 'Procuramos(a) especialista ou estudante avançado(a) com foco em cibersegurança para atuar no monitoramento de redes de vulnerabilidade em projetos internos.', details: 'Vaga fixa, com possibilidade de bolsa ou contrato.', type: 'Fixa', location: 'Híbrido' },
-  { id: '4', title: 'Design para Redes Sociais – Vaga Fixa', companyLogo: '/src/assets/images/avatar-julia.png', companyName: 'Agência Criativa', description: 'Estamos contratando uma equipe de designers para assumir a criação recorrente de peças para redes sociais da minha startup e projetos pessoais.', details: 'Trabalho remoto - Carga semanal fixa com entregas quinzenais.', type: 'Fixa', location: 'Remoto' },
-];
-
-const BriefcaseIcon = () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2 text-brand-purple"><path strokeLinecap="round" strokeLinejoin="round" d="M20.25 14.15v4.073a2.25 2.25 0 0 1-2.25 2.25h-12a2.25 2.25 0 0 1-2.25-2.25V6.326a2.25 2.25 0 0 1 2.25-2.25H18M21 7.5l-3.75-3.75M17.25 3v4.5h4.5" /></svg>;
-
+interface Vaga {
+  vaga_id: number;
+  titulo: string;
+  empresa: string;
+  logo_empresa?: string;
+  descricao: string;
+  tipo_trabalho: string;
+  prazo: string;
+  requisitos: string[];
+  usuario_id: number;
+  usuario_nome?: string;
+  usuario_foto?: string;
+  formato_trabalho?: string;
+}
 
 const VagasPage: React.FC = () => {
-  // Highlight the first vaga or a specific one
-  const vagaDestaque = mockVagas[0];
+  const [vagas, setVagas] = useState<Vaga[]>([]);
+
+  useEffect(() => {
+    const fetchVagas = async () => {
+      try {
+        const response = await axios.get('/vagas');
+        setVagas(response.data);
+      } catch (error) {
+        console.error('Erro ao buscar vagas:', error);
+      }
+    };
+
+    fetchVagas();
+  }, []);
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-3xl font-bold text-brand-purple-dark">Oportunidades Abertas</h1>
-
-      {/* Vaga em Destaque - using the style from the first image provided by user */}
-      {vagaDestaque && (
-        <section className="bg-slate-800 p-8 rounded-2xl shadow-xl text-white">
-          <div className="flex flex-col md:flex-row items-start gap-6">
-            <img src={vagaDestaque.companyLogo} alt={vagaDestaque.companyName} className="w-20 h-20 rounded-full object-cover bg-white p-1" />
-            <div>
-              <h2 className="text-2xl font-semibold text-brand-yellow mb-2">{vagaDestaque.title}</h2>
-              <p className="text-slate-300 mb-3">{vagaDestaque.description}</p>
-              <p className="text-sm text-brand-yellow font-medium">{vagaDestaque.details}</p>
-            </div>
-          </div>
-          <div className="mt-6 text-right">
-            <Link
-              to={`/vagas/${vagaDestaque.id}`}
-              className="bg-brand-yellow text-brand-purple-dark font-semibold py-2 px-6 rounded-lg hover:bg-yellow-400 transition-colors"
-            >
-              Me Conectar!
-            </Link>
-          </div>
-        </section>
-      )}
-      
-      {/* Lista de Outras Vagas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {mockVagas.slice(1).map((vaga) => ( // Slice to exclude the featured one
-          <div key={vaga.id} className="bg-white p-6 rounded-xl shadow-card hover:shadow-xl transition-shadow">
-            <div className="flex items-start gap-4 mb-3">
-                <img src={vaga.companyLogo} alt={vaga.companyName} className="w-12 h-12 rounded-full object-contain bg-gray-100 p-0.5" />
-                <div>
-                    <h3 className="text-xl font-semibold text-brand-purple-dark">{vaga.title}</h3>
-                    <p className="text-sm text-brand-text-secondary">{vaga.companyName}</p>
-                </div>
-            </div>
-            <p className="text-sm text-brand-text mb-3 line-clamp-3">{vaga.description}</p>
-            <div className="flex justify-between items-center text-xs text-brand-text-secondary">
-                <span><BriefcaseIcon /> {vaga.type}</span>
-                <span>📍 {vaga.location}</span>
-            </div>
-            <div className="mt-4">
-              <Link
-                to={`/vagas/${vaga.id}`}
-                className="text-brand-purple font-semibold hover:text-brand-purple-dark transition-colors"
-              >
-                Ver Detalhes &rarr;
-              </Link>
-            </div>
-          </div>
-        ))}
+    <div className="min-h-screen bg-gray-50">
+      {/* Cabeçalho */}
+      <div className="bg-brand-purple p-8">
+        <div className="container mx-auto">
+          <h1 className="text-2xl font-bold text-white mb-2">Vagas & Briefings</h1>
+          <p className="text-white opacity-90">
+            Encontre oportunidades para trabalhar em projetos incríveis ou publique suas próprias vagas.
+          </p>
+        </div>
       </div>
-       {/* TODO: Add filters for vagas */}
+
+      {/* Barra de Busca e Botão */}
+      <div className="container mx-auto px-4 py-6">
+        <div className="flex gap-4 items-center">
+          <div className="flex-1 relative">
+            <input
+              type="search"
+              placeholder="Buscar vagas..."
+              className="w-full pl-10 pr-4 py-2 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-purple focus:border-transparent"
+            />
+            <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+              <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+          </div>
+          <Link
+            to="/vagas/criar"
+            className="flex items-center gap-2 bg-brand-purple text-white px-6 py-2 rounded-full hover:bg-purple-700 transition-colors"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+            Publicar Vaga
+          </Link>
+        </div>
+      </div>
+
+      {/* Grid de Vagas */}
+      <div className="container mx-auto px-4 pb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+          {vagas.map((vaga) => (
+            <Link key={vaga.vaga_id} to={`/vagas/${vaga.vaga_id}`}>
+              <div className="group relative">
+                {/* Borda roxa superior arredondada */}
+                <div className="absolute top-0 left-0 right-0 h-8 bg-brand-purple rounded-t-xl z-10"></div>
+
+                {/* Corpo da pasta */}
+                <div className="bg-black pt-8 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 relative">
+                  <div className="p-4">
+                    <div className="flex items-center gap-3">
+                      {vaga.logo_empresa ? (
+                        <img
+                          src={`http://localhost:5000/${vaga.logo_empresa}`}
+                          alt={vaga.empresa}
+                          className="w-12 h-12 rounded-lg object-contain bg-white p-1"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-lg bg-white flex items-center justify-center">
+                          <span className="text-xl font-bold text-gray-600">
+                            {vaga.empresa.charAt(0)}
+                          </span>
+                        </div>
+                      )}
+                      <div>
+                        <h3 className="text-white font-bold line-clamp-2">{vaga.titulo}</h3>
+                        <p className="text-gray-400 text-sm">{vaga.empresa}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <span className="bg-brand-purple text-white text-xs px-3 py-1 rounded-full">
+                        {vaga.tipo_trabalho}
+                      </span>
+                      <span className="bg-brand-purple text-white text-xs px-3 py-1 rounded-full">
+                        {vaga.prazo}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };

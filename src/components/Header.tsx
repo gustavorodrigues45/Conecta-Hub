@@ -42,7 +42,7 @@ const Header: React.FC = () => {
           </button>
           {user ? (
             <div className="flex items-center space-x-2">
-              <Link to="/profile" className="flex items-center space-x-2">
+              <Link to="/perfil" className="flex items-center space-x-2">
                 <div className="w-8 h-8 rounded-full border-2 border-white overflow-hidden bg-white">
                   <img
                     src={getProfileImgSrc(user.foto_perfil)}

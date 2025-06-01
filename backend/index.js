@@ -389,6 +389,308 @@ app.get('/mensagens', async (req, res) => {
     }
 });
 
+// Adicionar coluna descricao na tabela usuario se não existir
+pool.query(`
+    ALTER TABLE usuario 
+    ADD COLUMN IF NOT EXISTS descricao TEXT;
+`).then(() => {
+    console.log('Coluna descricao adicionada ou já existe');
+}).catch(err => {
+    console.error('Erro ao adicionar coluna descricao:', err);
+});
+
+// Rota para atualizar a descrição do usuário
+app.put('/usuarios/:id/descricao', async (req, res) => {
+    const { id } = req.params;
+    const { descricao } = req.body;
+
+    try {
+        const result = await pool.query(
+            'UPDATE usuario SET descricao = $1 WHERE usuario_id = $2 RETURNING *',
+            [descricao, id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Usuário não encontrado' });
+        }
+
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error('Erro ao atualizar descrição do usuário:', err);
+        res.status(500).json({ error: 'Erro ao atualizar descrição do usuário' });
+    }
+});
+
+// Rotas para a tabela vagas
+app.post('/vagas', upload.single('logo_empresa'), async (req, res) => {
+    console.log('=== Início do processamento da rota POST /vagas ===');
+    console.log('Headers:', req.headers);
+    console.log('Body completo:', req.body);
+    console.log('Arquivo:', req.file);
+
+    try {
+        const {
+            titulo,
+            empresa,
+            descricao,
+            tipo_trabalho,
+            prazo,
+            requisitos,
+            formato_trabalho,
+            duracao_projeto,
+            remuneracao,
+            diferenciais,
+            usuario_id
+        } = req.body;
+
+        console.log('Dados extraídos do body:', {
+            titulo,
+            empresa,
+            descricao,
+            tipo_trabalho,
+            prazo,
+            requisitos,
+            formato_trabalho,
+            duracao_projeto,
+            remuneracao,
+            diferenciais,
+            usuario_id
+        });
+
+        // Validações básicas
+        if (!titulo || !empresa || !descricao || !tipo_trabalho || !prazo || !usuario_id) {
+            console.log('Validação falhou: campos obrigatórios faltando');
+            return res.status(400).json({
+                error: 'Campos obrigatórios não preenchidos',
+                missing: {
+                    titulo: !titulo,
+                    empresa: !empresa,
+                    descricao: !descricao,
+                    tipo_trabalho: !tipo_trabalho,
+                    prazo: !prazo,
+                    usuario_id: !usuario_id
+                }
+            });
+        }
+
+        const logoEmpresaPath = req.file ? `uploads/${req.file.filename.replace(/\\/g, '/')}` : null;
+        console.log('Logo empresa path:', logoEmpresaPath);
+
+        // Tratamento dos arrays como JSONB
+        let requisitosArray = [];
+        let diferenciaisArray = [];
+
+        try {
+            if (requisitos && requisitos.trim()) {
+                console.log('Processando requisitos:', requisitos);
+                const parsedRequisitos = JSON.parse(requisitos);
+                requisitosArray = Array.isArray(parsedRequisitos)
+                    ? parsedRequisitos.filter(req => req && req.trim())
+                    : [requisitos].filter(Boolean);
+            }
+        } catch (error) {
+            console.error('Erro ao processar requisitos:', error);
+            requisitosArray = requisitos ? [requisitos].filter(Boolean) : [];
+        }
+
+        try {
+            if (diferenciais && diferenciais.trim()) {
+                console.log('Processando diferenciais:', diferenciais);
+                const parsedDiferenciais = JSON.parse(diferenciais);
+                diferenciaisArray = Array.isArray(parsedDiferenciais)
+                    ? parsedDiferenciais.filter(dif => dif && dif.trim())
+                    : [diferenciais].filter(Boolean);
+            }
+        } catch (error) {
+            console.error('Erro ao processar diferenciais:', error);
+            diferenciaisArray = diferenciais ? [diferenciais].filter(Boolean) : [];
+        }
+
+        console.log('Arrays processados:', {
+            requisitosArray,
+            diferenciaisArray
+        });
+
+        const result = await pool.query(
+            `INSERT INTO vagas (
+                titulo, empresa, logo_empresa, descricao, 
+                tipo_trabalho, prazo, requisitos, usuario_id,
+                formato_trabalho, duracao_projeto, remuneracao, diferenciais
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12::jsonb) RETURNING *`,
+            [
+                titulo.trim(),
+                empresa.trim(),
+                logoEmpresaPath,
+                descricao.trim(),
+                tipo_trabalho.trim(),
+                prazo.trim(),
+                JSON.stringify(requisitosArray),
+                usuario_id,
+                formato_trabalho ? formato_trabalho.trim() : null,
+                duracao_projeto ? duracao_projeto.trim() : null,
+                remuneracao ? remuneracao.trim() : null,
+                JSON.stringify(diferenciaisArray)
+            ]
+        );
+
+        console.log('Vaga criada com sucesso:', result.rows[0]);
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        console.error('Erro detalhado ao criar vaga:', {
+            message: err.message,
+            stack: err.stack,
+            code: err.code,
+            detail: err.detail,
+            table: err.table,
+            constraint: err.constraint
+        });
+
+        // Tenta identificar o tipo de erro
+        let errorMessage = 'Erro ao criar vaga';
+        if (err.code === '23505') {
+            errorMessage = 'Já existe uma vaga com essas informações';
+        } else if (err.code === '23503') {
+            errorMessage = 'Usuário não encontrado';
+        } else if (err.code === '22P02') {
+            errorMessage = 'Erro ao processar os dados. Por favor, tente novamente.';
+        }
+
+        res.status(500).json({
+            error: errorMessage,
+            details: err.message,
+            code: err.code
+        });
+    }
+});
+
+app.get('/vagas', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT v.*, u.nome as usuario_nome, u.foto_perfil as usuario_foto
+            FROM vagas v
+            LEFT JOIN usuario u ON v.usuario_id = u.usuario_id
+            ORDER BY v.created_at DESC
+        `);
+        res.status(200).json(result.rows);
+    } catch (err) {
+        console.error('Erro ao buscar vagas:', err);
+        res.status(500).json({ error: 'Erro ao buscar vagas' });
+    }
+});
+
+app.get('/vagas/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(`
+            SELECT v.*, u.nome as usuario_nome, u.foto_perfil as usuario_foto
+            FROM vagas v
+            LEFT JOIN usuario u ON v.usuario_id = u.usuario_id
+            WHERE v.vaga_id = $1
+        `, [id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Vaga não encontrada' });
+        }
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Erro ao buscar vaga:', error);
+        res.status(500).json({ error: 'Erro ao buscar vaga' });
+    }
+});
+
+// Rotas para a tabela conexoes
+app.post('/conexoes/vagas/:vagaId', async (req, res) => {
+    try {
+        const { vagaId } = req.params;
+        const { usuario_id, mensagem, link_portfolio, tipo_conexao } = req.body;
+
+        // Verificar se a vaga existe
+        const vagaResult = await pool.query('SELECT * FROM vagas WHERE vaga_id = $1', [vagaId]);
+        if (vagaResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Vaga não encontrada' });
+        }
+
+        // Verificar se o usuário já tem uma conexão pendente para esta vaga
+        const conexaoExistente = await pool.query(
+            'SELECT * FROM conexoes WHERE vaga_id = $1 AND usuario_id = $2 AND status = $3',
+            [vagaId, usuario_id, 'pendente']
+        );
+
+        if (conexaoExistente.rows.length > 0) {
+            return res.status(400).json({ error: 'Você já tem uma solicitação pendente para esta vaga' });
+        }
+
+        // Criar a conexão
+        const result = await pool.query(
+            'INSERT INTO conexoes (vaga_id, usuario_id, mensagem, link_portfolio, tipo_conexao) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+            [vagaId, usuario_id, mensagem, link_portfolio, tipo_conexao]
+        );
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Erro ao criar conexão:', error);
+        res.status(500).json({ error: 'Erro ao criar conexão' });
+    }
+});
+
+app.get('/conexoes/vagas/:vagaId', async (req, res) => {
+    try {
+        const { vagaId } = req.params;
+        const result = await pool.query(`
+            SELECT c.*, u.nome as usuario_nome, u.foto_perfil as usuario_foto
+            FROM conexoes c
+            LEFT JOIN usuario u ON c.usuario_id = u.usuario_id
+            WHERE c.vaga_id = $1
+            ORDER BY c.created_at DESC
+        `, [vagaId]);
+
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Erro ao buscar conexões:', error);
+        res.status(500).json({ error: 'Erro ao buscar conexões' });
+    }
+});
+
+app.get('/minhas-conexoes', async (req, res) => {
+    try {
+        const { usuario_id } = req.query;
+        const result = await pool.query(`
+            SELECT c.*, v.titulo as vaga_titulo, v.empresa as vaga_empresa, v.logo_empresa
+            FROM conexoes c
+            JOIN vagas v ON c.vaga_id = v.vaga_id
+            WHERE c.usuario_id = $1
+            ORDER BY c.created_at DESC
+        `, [usuario_id]);
+
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Erro ao buscar minhas conexões:', error);
+        res.status(500).json({ error: 'Erro ao buscar minhas conexões' });
+    }
+});
+
+app.put('/conexoes/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        const result = await pool.query(
+            'UPDATE conexoes SET status = $1 WHERE conexao_id = $2 RETURNING *',
+            [status, id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Conexão não encontrada' });
+        }
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Erro ao atualizar conexão:', error);
+        res.status(500).json({ error: 'Erro ao atualizar conexão' });
+    }
+});
+
 // Start server
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
