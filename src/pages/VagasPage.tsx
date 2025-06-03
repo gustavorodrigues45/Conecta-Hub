@@ -89,10 +89,10 @@ const VagasPage: React.FC = () => {
                         <img
                           src={`http://localhost:5000/${vaga.logo_empresa}`}
                           alt={vaga.empresa}
-                          className="w-12 h-12 rounded-lg object-contain bg-white p-1"
+                          className="w-12 h-12 rounded-full object-contain bg-white p-1"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-lg bg-white flex items-center justify-center">
+                        <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center">
                           <span className="text-xl font-bold text-gray-600">
                             {vaga.empresa.charAt(0)}
                           </span>

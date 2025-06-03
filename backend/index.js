@@ -257,6 +257,14 @@ app.post('/curtidas', async (req, res) => {
             'INSERT INTO curtida (usuario_id, projeto_id) VALUES ($1, $2) RETURNING *',
             [usuario_id, projeto_id]
         );
+        // NOVO: Criar notificação para o dono do projeto
+        const projeto = await pool.query('SELECT usuario_id FROM projeto WHERE projeto_id = $1', [projeto_id]);
+        if (projeto.rows.length > 0 && projeto.rows[0].usuario_id !== usuario_id) {
+            await pool.query(
+                'INSERT INTO notificacoes (tipo, usuario_origem_id, usuario_destino_id, projeto_id) VALUES ($1, $2, $3, $4)',
+                ['curtida', usuario_id, projeto.rows[0].usuario_id, projeto_id]
+            );
+        }
         console.log('Curtida adicionada com sucesso:', result.rows[0]);
         res.status(201).json(result.rows[0]);
     } catch (err) {
@@ -314,6 +322,15 @@ app.post('/comentarios', async (req, res) => {
             'SELECT nome, foto_perfil FROM usuario WHERE usuario_id = $1',
             [usuario_id]
         );
+
+        // NOVO: Criar notificação para o dono do projeto
+        const projeto = await pool.query('SELECT usuario_id FROM projeto WHERE projeto_id = $1', [projeto_id]);
+        if (projeto.rows.length > 0 && projeto.rows[0].usuario_id !== usuario_id) {
+            await pool.query(
+                'INSERT INTO notificacoes (tipo, usuario_origem_id, usuario_destino_id, projeto_id, comentario_texto, comentario_id) VALUES ($1, $2, $3, $4, $5, $6)',
+                ['comentario', usuario_id, projeto.rows[0].usuario_id, projeto_id, texto, result.rows[0].comentario_id]
+            );
+        }
 
         const comentario = {
             ...result.rows[0],
@@ -581,12 +598,19 @@ app.get('/vagas', async (req, res) => {
 app.get('/vagas/:id', async (req, res) => {
     try {
         const { id } = req.params;
+
+        // Validação do ID
+        const vagaId = parseInt(id);
+        if (isNaN(vagaId)) {
+            return res.status(400).json({ error: 'ID da vaga inválido' });
+        }
+
         const result = await pool.query(`
             SELECT v.*, u.nome as usuario_nome, u.foto_perfil as usuario_foto
             FROM vagas v
             LEFT JOIN usuario u ON v.usuario_id = u.usuario_id
             WHERE v.vaga_id = $1
-        `, [id]);
+        `, [vagaId]);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Vaga não encontrada' });
@@ -688,6 +712,38 @@ app.put('/conexoes/:id', async (req, res) => {
     } catch (error) {
         console.error('Erro ao atualizar conexão:', error);
         res.status(500).json({ error: 'Erro ao atualizar conexão' });
+    }
+});
+
+// ROTA: Buscar notificações do usuário (curtidas e comentários)
+app.get('/usuarios/:id/notificacoes', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const result = await pool.query(`
+            SELECT n.*, 
+                   u.nome as usuario_nome, 
+                   u.foto_perfil as usuario_foto,
+                   p.titulo as projeto_titulo
+            FROM notificacoes n
+            JOIN usuario u ON n.usuario_origem_id = u.usuario_id
+            JOIN projeto p ON n.projeto_id = p.projeto_id
+            WHERE n.usuario_destino_id = $1
+            ORDER BY n.data_criacao DESC
+        `, [id]);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Erro ao buscar notificações:', error);
+        res.status(500).json({ error: 'Erro ao buscar notificações' });
+    }
+});
+
+app.delete('/notificacoes/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        await pool.query('DELETE FROM notificacoes WHERE notificacao_id = $1', [id]);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao remover notificação' });
     }
 });
 

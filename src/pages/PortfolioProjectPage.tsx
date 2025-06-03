@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 
 interface Projeto {
@@ -41,6 +41,7 @@ const normalizeUserImage = (foto_perfil?: string) => {
 const PortfolioProjectPage: React.FC = () => {
     const { projectId } = useParams<{ projectId: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
     const [projeto, setProjeto] = useState<Projeto | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [outrosProjetos, setOutrosProjetos] = useState<Projeto[]>([]);
@@ -278,6 +279,24 @@ const PortfolioProjectPage: React.FC = () => {
             alert('Erro ao excluir comentário. Tente novamente.');
         }
     };
+
+    useEffect(() => {
+        if (location.state && location.state.comentarioId) {
+            setTimeout(() => {
+                const el = document.getElementById(`comentario-${location.state.comentarioId}`);
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    el.classList.add('bg-yellow-100');
+                    setTimeout(() => el.classList.remove('bg-yellow-100'), 2000);
+                }
+            }, 300);
+        } else if (location.state && location.state.scrollToComments) {
+            const el = document.getElementById('comments-section');
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+    }, [location, comentarios]);
 
     if (!projeto) {
         return <p>Carregando...</p>;
@@ -587,7 +606,7 @@ const PortfolioProjectPage: React.FC = () => {
                         </div>
                     ) : comentarios.length > 0 ? (
                         comentarios.map(comentario => (
-                            <div key={comentario.comentario_id} className="flex gap-4">
+                            <div key={comentario.comentario_id} id={`comentario-${comentario.comentario_id}`} className="flex gap-4">
                                 <img
                                     src={normalizeUserImage(comentario.usuario_foto)}
                                     alt={comentario.usuario_nome}

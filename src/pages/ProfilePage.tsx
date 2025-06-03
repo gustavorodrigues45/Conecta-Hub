@@ -23,6 +23,17 @@ interface Usuario {
     google_drive?: string;
 }
 
+interface Notificacao {
+    notificacao_id: number;
+    tipo: 'curtida' | 'comentario';
+    usuario_nome: string;
+    usuario_foto: string;
+    projeto_titulo: string;
+    projeto_id: number;
+    comentario_texto?: string;
+    comentario_id?: number;
+}
+
 const ProfilePage: React.FC = () => {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('portfolio');
@@ -31,6 +42,7 @@ const ProfilePage: React.FC = () => {
     const [isEditingPhoto, setIsEditingPhoto] = useState(false);
     const [isEditingDesc, setIsEditingDesc] = useState(false);
     const [newDesc, setNewDesc] = useState('');
+    const [notificacoes, setNotificacoes] = useState<Notificacao[]>([]);
     const userId = JSON.parse(localStorage.getItem('user') || '{}').usuario_id;
 
     useEffect(() => {
@@ -63,6 +75,14 @@ const ProfilePage: React.FC = () => {
             navigate('/login');
         }
     }, [userId, navigate]);
+
+    useEffect(() => {
+        if (userId && activeTab === 'conexoes') {
+            axios.get(`/usuarios/${userId}/notificacoes`).then(res => {
+                setNotificacoes(res.data);
+            });
+        }
+    }, [userId, activeTab]);
 
     const handlePhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -97,6 +117,67 @@ const ProfilePage: React.FC = () => {
             alert('Erro ao atualizar descrição. Tente novamente.');
         }
     };
+
+    const handleVisto = async (id: number) => {
+        try {
+            await axios.delete(`/notificacoes/${id}`);
+            setNotificacoes(prev => prev.filter(n => n.notificacao_id !== id));
+        } catch (e) {
+            alert('Erro ao remover notificação');
+        }
+    };
+
+    const handleVerComentario = (projetoId: number, comentarioId?: number) => {
+        navigate(`/portfolio/${projetoId}`, { state: { scrollToComments: true, comentarioId } });
+    };
+
+    const renderNotificacoesRoxas = () => (
+        <div className="space-y-3">
+            {notificacoes.length > 0 ? (
+                notificacoes.map((notif) => (
+                    <div key={notif.notificacao_id} className="bg-purple-300 rounded-2xl p-3 flex items-center gap-3">
+                        <img
+                            src={notif.usuario_foto ? `http://localhost:5000/${notif.usuario_foto}` : '/default-profile.png'}
+                            alt={notif.usuario_nome}
+                            className="w-10 h-10 rounded-full object-cover"
+                        />
+                        <div className="flex-1">
+                            <span className="font-semibold mr-2">@{notif.usuario_nome}</span>
+                            <span>
+                                {notif.tipo === 'curtida'
+                                    ? <>curtiu seu projeto - <span className="font-semibold">{notif.projeto_titulo}</span></>
+                                    : <>comentou seu projeto - <span className="font-semibold">{notif.projeto_titulo}</span></>
+                                }
+                            </span>
+                            {notif.tipo === 'comentario' && (
+                                <div className="text-xs text-gray-700 mt-1 italic">"{notif.comentario_texto}"</div>
+                            )}
+                            <div className="flex gap-2 mt-2">
+                                <button
+                                    onClick={() => handleVisto(notif.notificacao_id)}
+                                    className="px-3 py-1 bg-green-200 text-green-900 rounded-full text-xs hover:bg-green-300"
+                                >
+                                    Visto
+                                </button>
+                                {notif.tipo === 'comentario' && (
+                                    <button
+                                        onClick={() => handleVerComentario(notif.projeto_id, notif.comentario_id)}
+                                        className="px-3 py-1 bg-white text-purple-900 rounded-full text-xs hover:bg-gray-100 border border-purple-400"
+                                    >
+                                        Ver comentário
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                ))
+            ) : (
+                <div className="text-center py-10 text-gray-500">
+                    Nenhuma notificação encontrada
+                </div>
+            )}
+        </div>
+    );
 
     if (!usuario) {
         return <div>Carregando...</div>;
@@ -283,11 +364,7 @@ const ProfilePage: React.FC = () => {
                         Funcionalidade em desenvolvimento
                     </div>
                 )}
-                {activeTab === 'conexoes' && (
-                    <div className="text-center text-gray-500 py-8">
-                        Funcionalidade em desenvolvimento
-                    </div>
-                )}
+                {activeTab === 'conexoes' && renderNotificacoesRoxas()}
                 {activeTab === 'conquistas' && (
                     <div className="text-center text-gray-500 py-8">
                         Funcionalidade em desenvolvimento
