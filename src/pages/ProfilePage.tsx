@@ -43,6 +43,8 @@ const ProfilePage: React.FC = () => {
     const [isEditingDesc, setIsEditingDesc] = useState(false);
     const [newDesc, setNewDesc] = useState('');
     const [notificacoes, setNotificacoes] = useState<Notificacao[]>([]);
+    const [solicitacoesConexao, setSolicitacoesConexao] = useState<any[]>([]);
+    const [chats, setChats] = useState<any[]>([]);
     const userId = JSON.parse(localStorage.getItem('user') || '{}').usuario_id;
 
     useEffect(() => {
@@ -80,6 +82,12 @@ const ProfilePage: React.FC = () => {
         if (userId && activeTab === 'conexoes') {
             axios.get(`/usuarios/${userId}/notificacoes`).then(res => {
                 setNotificacoes(res.data);
+            });
+            axios.get(`/usuarios/${userId}/conexoes-recebidas`).then(res => {
+                setSolicitacoesConexao(res.data.filter((c: any) => c.status === 'pendente'));
+            });
+            axios.get(`/chats/user/${userId}`).then(res => {
+                setChats(res.data);
             });
         }
     }, [userId, activeTab]);
@@ -131,6 +139,28 @@ const ProfilePage: React.FC = () => {
         navigate(`/portfolio/${projetoId}`, { state: { scrollToComments: true, comentarioId } });
     };
 
+    const handleAceitarConexao = async (id: number, senderId: number) => {
+        try {
+            const res = await axios.put(`/conexoes/${id}/aceitar`);
+            // Atualizar lista de chats imediatamente
+            const chatsRes = await axios.get(`/chats/user/${userId}`);
+            setChats(chatsRes.data);
+            // Redireciona para o chat criado
+            navigate(`/chat/${res.data.chat.id}`);
+        } catch (err) {
+            alert('Erro ao aceitar conexão');
+        }
+    };
+
+    const handleRecusarConexao = async (id: number) => {
+        try {
+            await axios.put(`/conexoes/${id}/recusar`);
+            setSolicitacoesConexao(prev => prev.filter(c => c.id !== id));
+        } catch (err) {
+            alert('Erro ao recusar conexão');
+        }
+    };
+
     const renderNotificacoesRoxas = () => (
         <div className="space-y-3">
             {notificacoes.length > 0 ? (
@@ -175,6 +205,67 @@ const ProfilePage: React.FC = () => {
                 <div className="text-center py-10 text-gray-500">
                     Nenhuma notificação encontrada
                 </div>
+            )}
+        </div>
+    );
+
+    const renderSolicitacoesConexao = () => (
+        <div className="space-y-3 mb-8">
+            {solicitacoesConexao.length > 0 ? (
+                solicitacoesConexao.map((sol) => (
+                    <div key={sol.id} className="bg-purple-100 rounded-2xl p-3 flex items-center gap-3">
+                        <img
+                            src={sol.sender_foto ? `http://localhost:5000/${sol.sender_foto}` : '/default-profile.png'}
+                            alt={sol.sender_nome}
+                            className="w-10 h-10 rounded-full object-cover"
+                        />
+                        <div className="flex-1">
+                            <span className="font-semibold mr-2">@{sol.sender_nome}</span>
+                            <span>quer se conectar: <span className="font-semibold">{sol.connection_type}</span></span>
+                            <div className="text-xs text-gray-700 mt-1 italic">{sol.reason}</div>
+                            {sol.link && <div className="text-xs text-blue-700 mt-1"><a href={sol.link} target="_blank" rel="noopener noreferrer">{sol.link}</a></div>}
+                            <div className="flex gap-2 mt-2">
+                                <button
+                                    onClick={() => handleAceitarConexao(sol.id, sol.sender_id)}
+                                    className="px-3 py-1 bg-green-500 text-white rounded-full text-xs hover:bg-green-600"
+                                >
+                                    Aceitar
+                                </button>
+                                <button
+                                    onClick={() => handleRecusarConexao(sol.id)}
+                                    className="px-3 py-1 bg-red-500 text-white rounded-full text-xs hover:bg-red-600"
+                                >
+                                    Recusar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                ))
+            ) : (
+                <div className="text-center py-4 text-gray-500">Nenhuma solicitação de conexão pendente</div>
+            )}
+        </div>
+    );
+
+    const renderMiniChatList = () => (
+        <div className="bg-white rounded-xl shadow p-4 mb-6">
+            <h3 className="text-lg font-bold mb-3 text-brand-purple">Suas Conversas</h3>
+            {chats.length > 0 ? (
+                <ul className="space-y-2">
+                    {chats.map(chat => {
+                        const otherUserId = chat.user1_id === userId ? chat.user2_id : chat.user1_id;
+                        const otherUserName = chat.user1_id === userId ? chat.user2_nome : chat.user1_nome;
+                        const otherUserFoto = chat.user1_id === userId ? chat.user2_foto : chat.user1_foto;
+                        return (
+                            <li key={chat.id} className="flex items-center gap-3 cursor-pointer hover:bg-purple-50 rounded-lg p-2" onClick={() => navigate(`/chat/${chat.id}`)}>
+                                <img src={otherUserFoto ? `http://localhost:5000/${otherUserFoto}` : '/default-profile.png'} alt={otherUserName} className="w-8 h-8 rounded-full object-cover" />
+                                <span className="font-medium text-brand-purple-dark">{otherUserName || `Usuário ${otherUserId}`}</span>
+                            </li>
+                        );
+                    })}
+                </ul>
+            ) : (
+                <div className="text-gray-500 text-sm">Nenhuma conversa ainda.</div>
             )}
         </div>
     );
@@ -364,7 +455,15 @@ const ProfilePage: React.FC = () => {
                         Funcionalidade em desenvolvimento
                     </div>
                 )}
-                {activeTab === 'conexoes' && renderNotificacoesRoxas()}
+                {activeTab === 'conexoes' && (
+                    <div className="flex flex-col md:flex-row gap-8">
+                        <div className="md:w-1/3">{renderMiniChatList()}</div>
+                        <div className="flex-1">
+                            {renderSolicitacoesConexao()}
+                            {renderNotificacoesRoxas()}
+                        </div>
+                    </div>
+                )}
                 {activeTab === 'conquistas' && (
                     <div className="text-center text-gray-500 py-8">
                         Funcionalidade em desenvolvimento

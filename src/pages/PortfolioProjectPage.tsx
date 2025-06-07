@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import ConnectionRequestModal from '../components/ConnectionRequestModal';
 
 interface Projeto {
     projeto_id: number;
@@ -50,6 +51,7 @@ const PortfolioProjectPage: React.FC = () => {
     const [comentarios, setComentarios] = useState<Comentario[]>([]);
     const [novoComentario, setNovoComentario] = useState('');
     const [isLoadingComentarios, setIsLoadingComentarios] = useState(false);
+    const [isConnectionModalOpen, setIsConnectionModalOpen] = useState(false);
 
     const scrollToComments = () => {
         const commentsSection = document.getElementById('comments-section');
@@ -396,6 +398,56 @@ const PortfolioProjectPage: React.FC = () => {
                                 {comentarios.length}
                             </span>
                         </div>
+                        {/* Botão de Conectar */}
+                        {projeto && projeto.usuario_id !== userId && (
+                            <div className="flex flex-col items-center gap-1">
+                                <button
+                                    className="bg-white p-2 rounded-full shadow hover:bg-gray-200 flex items-center justify-center transform transition-all duration-200"
+                                    title="Conectar"
+                                    onClick={() => setIsConnectionModalOpen(true)}
+                                >
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="0 0 24 24"
+                                        className="w-6 h-6 text-green-500"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                    >
+                                        <circle cx="12" cy="12" r="9" />
+                                    </svg>
+                                </button>
+                                <span className="text-center text-sm font-medium text-green-500">
+                                    Conectar
+                                </span>
+                                <ConnectionRequestModal
+                                    isOpen={isConnectionModalOpen}
+                                    onClose={() => setIsConnectionModalOpen(false)}
+                                    recipientName={projeto.usuario_nome || ''}
+                                    recipientId={projeto.usuario_id || 0}
+                                    projectLink={window.location.href}
+                                    onSend={async (data) => {
+                                        // Enviar solicitação para o backend
+                                        try {
+                                            await axios.post('/conexoes', {
+                                                ...data,
+                                                senderId: userId,
+                                                senderName: JSON.parse(localStorage.getItem('user') || '{}').nome || '',
+                                                senderFoto: JSON.parse(localStorage.getItem('user') || '{}').foto_perfil || '',
+                                                projetoId: projeto.projeto_id
+                                            }, {
+                                                headers: {
+                                                    'x-request-type': 'connection'
+                                                }
+                                            });
+                                            alert('Solicitação enviada!');
+                                        } catch (err) {
+                                            alert('Erro ao enviar solicitação.');
+                                        }
+                                    }}
+                                />
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

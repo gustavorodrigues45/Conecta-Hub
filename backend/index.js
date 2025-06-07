@@ -316,20 +316,24 @@ app.post('/comentarios', async (req, res) => {
             'INSERT INTO comentario (projeto_id, usuario_id, texto) VALUES ($1, $2, $3) RETURNING *',
             [projeto_id, usuario_id, texto]
         );
-
         // Buscar informações do usuário para retornar junto com o comentário
         const userInfo = await pool.query(
             'SELECT nome, foto_perfil FROM usuario WHERE usuario_id = $1',
             [usuario_id]
         );
 
-        // NOVO: Criar notificação para o dono do projeto
-        const projeto = await pool.query('SELECT usuario_id FROM projeto WHERE projeto_id = $1', [projeto_id]);
-        if (projeto.rows.length > 0 && projeto.rows[0].usuario_id !== usuario_id) {
-            await pool.query(
-                'INSERT INTO notificacoes (tipo, usuario_origem_id, usuario_destino_id, projeto_id, comentario_texto, comentario_id) VALUES ($1, $2, $3, $4, $5, $6)',
-                ['comentario', usuario_id, projeto.rows[0].usuario_id, projeto_id, texto, result.rows[0].comentario_id]
-            );
+        // Verificar se é uma conexão pelo tipo da requisição
+        const isConnection = req.headers['x-request-type'] === 'connection';
+
+        // Só criar notificação se NÃO for uma conexão
+        if (!isConnection) {
+            const projeto = await pool.query('SELECT usuario_id FROM projeto WHERE projeto_id = $1', [projeto_id]);
+            if (projeto.rows.length > 0 && projeto.rows[0].usuario_id !== usuario_id) {
+                await pool.query(
+                    'INSERT INTO notificacoes (tipo, usuario_origem_id, usuario_destino_id, projeto_id, comentario_texto, comentario_id) VALUES ($1, $2, $3, $4, $5, $6)',
+                    ['comentario', usuario_id, projeto.rows[0].usuario_id, projeto_id, texto, result.rows[0].comentario_id]
+                );
+            }
         }
 
         const comentario = {
@@ -337,7 +341,6 @@ app.post('/comentarios', async (req, res) => {
             usuario_nome: userInfo.rows[0].nome,
             usuario_foto: userInfo.rows[0].foto_perfil || null
         };
-
         res.status(201).json(comentario);
     } catch (err) {
         console.error('Erro ao criar comentário:', err);
@@ -744,6 +747,170 @@ app.delete('/notificacoes/:id', async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: 'Erro ao remover notificação' });
+    }
+});
+
+// --- CONEXÃO ENTRE USUÁRIOS ---
+app.post('/conexoes', async (req, res) => {
+    const { senderId, recipientId, projetoId, reason, link, connectionType } = req.body;
+    try {
+        const result = await pool.query(
+            `INSERT INTO user_connections 
+                (sender_id, recipient_id, projeto_id, reason, link, connection_type) 
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+            [senderId, recipientId, projetoId, reason, link, connectionType]
+        );
+        // Criar notificação apenas de conexão
+        await pool.query(
+            `INSERT INTO notificacoes 
+                (tipo, usuario_origem_id, usuario_destino_id, projeto_id, mensagem) 
+             VALUES ($1, $2, $3, $4, $5)`,
+            ['conexao', senderId, recipientId, projetoId, reason]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        console.error('Erro ao criar conexão:', err);
+        res.status(500).json({ error: 'Erro ao criar conexão' });
+    }
+});
+
+app.get('/usuarios/:id/conexoes-recebidas', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const result = await pool.query(
+            `SELECT uc.*, u.nome as sender_nome, u.foto_perfil as sender_foto
+             FROM user_connections uc
+             JOIN usuario u ON uc.sender_id = u.usuario_id
+             WHERE uc.recipient_id = $1
+             ORDER BY uc.created_at DESC`,
+            [id]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: 'Erro ao buscar conexões recebidas' });
+    }
+});
+
+app.put('/conexoes/:id/aceitar', async (req, res) => {
+    const { id } = req.params;
+    try {
+        // Atualiza status
+        const result = await pool.query(
+            `UPDATE user_connections SET status = 'aceita' WHERE id = $1 RETURNING *`,
+            [id]
+        );
+        const conexao = result.rows[0];
+        // Cria chat se não existir
+        const chatExist = await pool.query(
+            `SELECT * FROM user_chats WHERE (user1_id = $1 AND user2_id = $2) OR (user1_id = $2 AND user2_id = $1)`,
+            [conexao.sender_id, conexao.recipient_id]
+        );
+        let chat;
+        if (chatExist.rows.length > 0) {
+            chat = chatExist.rows[0];
+        } else {
+            const chatRes = await pool.query(
+                `INSERT INTO user_chats (user1_id, user2_id) VALUES ($1, $2) RETURNING *`,
+                [conexao.sender_id, conexao.recipient_id]
+            );
+            chat = chatRes.rows[0];
+        }
+        res.json({ conexao, chat });
+    } catch (err) {
+        res.status(500).json({ error: 'Erro ao aceitar conexão' });
+    }
+});
+
+app.put('/conexoes/:id/recusar', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const result = await pool.query(
+            `UPDATE user_connections SET status = 'recusada' WHERE id = $1 RETURNING *`,
+            [id]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: 'Erro ao recusar conexão' });
+    }
+});
+
+// --- CHAT ENTRE USUÁRIOS ---
+app.get('/chats/user/:userId', async (req, res) => {
+    const { userId } = req.params;
+    try {
+        const result = await pool.query(`
+            SELECT c.*, 
+                u1.nome as user1_nome, u1.foto_perfil as user1_foto,
+                u2.nome as user2_nome, u2.foto_perfil as user2_foto
+            FROM user_chats c
+            JOIN usuario u1 ON c.user1_id = u1.usuario_id
+            JOIN usuario u2 ON c.user2_id = u2.usuario_id
+            WHERE c.user1_id = $1 OR c.user2_id = $1
+            ORDER BY c.created_at DESC
+        `, [userId]);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: 'Erro ao buscar chats do usuário' });
+    }
+});
+
+app.post('/chats', async (req, res) => {
+    const { user1_id, user2_id } = req.body;
+    try {
+        const existing = await pool.query(
+            `SELECT * FROM user_chats WHERE (user1_id = $1 AND user2_id = $2) OR (user1_id = $2 AND user2_id = $1)`,
+            [user1_id, user2_id]
+        );
+        if (existing.rows.length > 0) {
+            return res.json(existing.rows[0]);
+        }
+        const result = await pool.query(
+            `INSERT INTO user_chats (user1_id, user2_id) VALUES ($1, $2) RETURNING *`,
+            [user1_id, user2_id]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: 'Erro ao criar chat' });
+    }
+});
+
+app.post('/chats/:chatId/messages', async (req, res) => {
+    const { chatId } = req.params;
+    const { sender_id, message } = req.body;
+    try {
+        const result = await pool.query(
+            `INSERT INTO user_messages (chat_id, sender_id, message) VALUES ($1, $2, $3) RETURNING *`,
+            [chatId, sender_id, message]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: 'Erro ao enviar mensagem' });
+    }
+});
+
+app.get('/chats/:chatId/messages', async (req, res) => {
+    const { chatId } = req.params;
+    try {
+        const result = await pool.query(
+            `SELECT * FROM user_messages WHERE chat_id = $1 ORDER BY created_at ASC`,
+            [chatId]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: 'Erro ao buscar mensagens' });
+    }
+});
+
+app.get('/chats/:chatId', async (req, res) => {
+    const { chatId } = req.params;
+    try {
+        const result = await pool.query('SELECT * FROM user_chats WHERE id = $1', [chatId]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Chat não encontrado' });
+        }
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: 'Erro ao buscar chat' });
     }
 });
 
