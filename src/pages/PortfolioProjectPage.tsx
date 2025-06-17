@@ -1,7 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import ConnectionRequestModal from '../components/ConnectionRequestModal';
+
+interface Usuario {
+    usuario_id: number;
+    nome: string;
+    foto_perfil?: string;
+    tipo?: 'designer' | 'programador';
+    is_owner?: boolean;
+}
 
 interface Projeto {
     projeto_id: number;
@@ -16,6 +24,7 @@ interface Projeto {
     usuario_id?: number;
     usuario_nome?: string;
     usuario_foto?: string;
+    tipo?: 'designer' | 'programador';
 }
 
 interface Comentario {
@@ -44,14 +53,19 @@ const PortfolioProjectPage: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const [projeto, setProjeto] = useState<Projeto | null>(null);
+    const [projetoOwner, setProjetoOwner] = useState<Usuario | null>(null);
+    const [colaboradores, setColaboradores] = useState<Usuario[]>([]);
     const [isUploading, setIsUploading] = useState(false);
-    const [outrosProjetos, setOutrosProjetos] = useState<Projeto[]>([]);
     const [likes, setLikes] = useState<number>(0);
     const [hasLiked, setHasLiked] = useState<boolean>(false);
     const [comentarios, setComentarios] = useState<Comentario[]>([]);
-    const [novoComentario, setNovoComentario] = useState('');
-    const [isLoadingComentarios, setIsLoadingComentarios] = useState(false);
     const [isConnectionModalOpen, setIsConnectionModalOpen] = useState(false);
+    const [isOwnerModalOpen, setIsOwnerModalOpen] = useState(false);
+    // Adicionando estado para verificar se o usuário é colaborador ou dono
+    const [isCollaborator, setIsCollaborator] = useState(false);
+    const [isOwner, setIsOwner] = useState(false);
+    const [newComment, setNewComment] = useState('');
+    const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
     const scrollToComments = () => {
         const commentsSection = document.getElementById('comments-section');
@@ -95,9 +109,7 @@ const PortfolioProjectPage: React.FC = () => {
         } finally {
             setIsUploading(false);
         }
-    };
-
-    useEffect(() => {
+    }; useEffect(() => {
         const fetchProjeto = async () => {
             try {
                 // Primeiro, busca os dados do projeto
@@ -121,6 +133,9 @@ const PortfolioProjectPage: React.FC = () => {
                             usuario_nome: usuario?.nome || 'Usuário',
                             usuario_foto: normalizeUserImage(usuario?.foto_perfil),
                         });
+
+                        // Armazena os dados completos do dono do projeto
+                        setProjetoOwner(usuario);
                     } catch (error) {
                         console.error('Erro ao buscar usuário:', error);
                         setProjeto({
@@ -139,25 +154,6 @@ const PortfolioProjectPage: React.FC = () => {
             fetchProjeto();
         }
     }, [projectId]);
-
-    useEffect(() => {
-        const fetchOutrosProjetos = async () => {
-            try {
-                const response = await axios.get('/projetos');
-                const projetosAleatorios = response.data
-                    .filter((p: Projeto) => p.projeto_id !== projeto?.projeto_id) // Exclude the current project
-                    .sort(() => 0.5 - Math.random()) // Shuffle the array
-                    .slice(0, 2); // Take the first 2 projects
-                setOutrosProjetos(projetosAleatorios);
-            } catch (error) {
-                console.error('Erro ao buscar outros projetos:', error);
-            }
-        };
-
-        if (projeto) {
-            fetchOutrosProjetos();
-        }
-    }, [projeto]);
 
     const userId = JSON.parse(localStorage.getItem('user') || '{}').usuario_id || 0;
 
@@ -226,14 +222,11 @@ const PortfolioProjectPage: React.FC = () => {
     const carregarComentarios = async () => {
         if (!projectId) return;
 
-        setIsLoadingComentarios(true);
         try {
             const response = await axios.get(`/comentarios/${projectId}`);
             setComentarios(response.data);
         } catch (error) {
             console.error('Erro ao carregar comentários:', error);
-        } finally {
-            setIsLoadingComentarios(false);
         }
     };
 
@@ -243,44 +236,6 @@ const PortfolioProjectPage: React.FC = () => {
             carregarComentarios();
         }
     }, [projectId]);
-
-    // Função para adicionar novo comentário
-    const handleAddComentario = async () => {
-        if (!novoComentario.trim() || !userId) {
-            if (!userId) {
-                alert('Você precisa estar logado para comentar!');
-                navigate('/login');
-            }
-            return;
-        }
-
-        try {
-            const response = await axios.post('/comentarios', {
-                projeto_id: Number(projectId),
-                usuario_id: Number(userId),
-                texto: novoComentario.trim()
-            });
-
-            setComentarios(prev => [response.data, ...prev]);
-            setNovoComentario('');
-        } catch (error) {
-            console.error('Erro ao adicionar comentário:', error);
-            alert('Erro ao adicionar comentário. Tente novamente.');
-        }
-    };
-
-    // Função para excluir comentário
-    const handleDeleteComentario = async (comentarioId: number) => {
-        if (!confirm('Tem certeza que deseja excluir este comentário?')) return;
-
-        try {
-            await axios.delete(`/comentarios/${comentarioId}`);
-            setComentarios(prev => prev.filter(c => c.comentario_id !== comentarioId));
-        } catch (error) {
-            console.error('Erro ao excluir comentário:', error);
-            alert('Erro ao excluir comentário. Tente novamente.');
-        }
-    };
 
     useEffect(() => {
         if (location.state && location.state.comentarioId) {
@@ -300,18 +255,166 @@ const PortfolioProjectPage: React.FC = () => {
         }
     }, [location, comentarios]);
 
+    // Fetch all users when the modal is opened
+    useEffect(() => {
+        if (isOwnerModalOpen) {
+            // Fetch all users when the modal is opened
+            axios.get('http://localhost:5000/usuarios')
+                .then(response => {
+                    console.log('Dados recebidos:', response.data);
+                    if (Array.isArray(response.data)) {
+                        // Removido: setUsers(response.data.map((user: any) => { ... }));
+                    } else {
+                        console.error('Formato de dados inesperado:', response.data);
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro ao buscar usuários:', error);
+                    console.error('Detalhes do erro:', error.response?.data || 'Sem detalhes disponíveis');
+                    alert('Erro ao carregar usuários. Por favor, tente novamente.');
+                });
+        }
+    }, [isOwnerModalOpen]);
+
+    // Adicionando lógica para verificar se o usuário é colaborador ou dono
+    useEffect(() => {
+        const checkUserRole = async () => {
+            try {
+                const userId = JSON.parse(localStorage.getItem('user') || '{}').usuario_id;
+                const response = await axios.get(`/usuario-projeto/${projectId}`);
+                const collaborators = response.data;
+
+                console.log('Colaboradores recebidos:', collaborators); // Log para debug
+
+                // Buscar informações detalhadas de cada colaborador, incluindo o dono
+                const colaboradoresDetalhados = await Promise.all(
+                    collaborators.map(async (collaborator: any) => {
+                        try {
+                            const userRes = await axios.get(`/usuarios/${collaborator.usuario_id}`);
+                            const isOwner = collaborator.usuario_id === projeto?.usuario_id;
+                            console.log(`Usuário ${collaborator.usuario_id} - isOwner: ${isOwner}`);
+                            return {
+                                ...userRes.data,
+                                is_owner: isOwner
+                            };
+                        } catch (error) {
+                            console.error(`Erro ao buscar dados do usuário ${collaborator.usuario_id}:`, error);
+                            return null;
+                        }
+                    })
+                );
+
+                // Filtrar null e definir os colaboradores
+                setColaboradores(colaboradoresDetalhados.filter(Boolean));
+
+                const isUserCollaborator = collaborators.some((collaborator: any) => collaborator.usuario_id === userId);
+                setIsCollaborator(isUserCollaborator);
+                console.log('Usuário é colaborador?', isUserCollaborator);
+
+                const isUserOwner = projeto?.usuario_id === userId;
+                setIsOwner(isUserOwner);
+                console.log('Usuário é dono?', isUserOwner);
+            } catch (error) {
+                console.error('Erro ao verificar papel do usuário:', error);
+            }
+        };
+
+        if (projectId) {
+            checkUserRole();
+        }
+    }, [projectId, projeto]);
+
+    // Usando isCollaborator e isOwner para determinar permissões
+    const canEdit = useMemo(() => {
+        return isOwner || isCollaborator;
+    }, [isOwner, isCollaborator]);
+
+    const handleCommentSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newComment.trim()) return;
+
+        const userId = JSON.parse(localStorage.getItem('user') || '{}').usuario_id;
+        if (!userId) {
+            alert('Você precisa estar logado para comentar!');
+            navigate('/login');
+            return;
+        }
+
+        setIsSubmittingComment(true);
+        try {
+            await axios.post('/comentarios', {
+                usuario_id: userId,
+                projeto_id: Number(projectId),
+                texto: newComment.trim()
+            });
+
+            // Recarregar comentários
+            carregarComentarios();
+            // Limpar o campo de comentário
+            setNewComment('');
+        } catch (error) {
+            console.error('Erro ao enviar comentário:', error);
+            alert('Erro ao enviar comentário. Tente novamente.');
+        } finally {
+            setIsSubmittingComment(false);
+        }
+    };
+
+    // Efeito para buscar colaboradores
+    useEffect(() => {
+        const fetchCollaborators = async () => {
+            if (!projectId || !projeto?.usuario_id) return;
+
+            try {
+                const userId = JSON.parse(localStorage.getItem('user') || '{}').usuario_id;
+                const response = await axios.get(`/usuario-projeto/${projectId}`);
+                const collaboratorsData = response.data;
+
+                // Buscar informações detalhadas dos usuários
+                const detailedUsers = await Promise.all(
+                    collaboratorsData.map(async (collab: any) => {
+                        try {
+                            const userRes = await axios.get(`/usuarios/${collab.usuario_id}`);
+                            return {
+                                ...userRes.data,
+                                is_owner: collab.usuario_id === projeto.usuario_id
+                            };
+                        } catch (error) {
+                            console.error(`Erro ao buscar usuário ${collab.usuario_id}:`, error);
+                            return null;
+                        }
+                    })
+                );
+
+                // Filtrar nulos e atualizar estado
+                const validUsers = detailedUsers.filter(Boolean);
+                setColaboradores(validUsers);
+
+                // Verificar papéis do usuário atual
+                const isUserCollab = collaboratorsData.some((c: any) => c.usuario_id === userId);
+                const isUserOwner = projeto.usuario_id === userId;
+
+                setIsCollaborator(isUserCollab);
+                setIsOwner(isUserOwner);
+            } catch (error) {
+                console.error('Erro ao buscar colaboradores:', error);
+            }
+        };
+
+        fetchCollaborators();
+    }, [projectId, projeto?.usuario_id]);
+
     if (!projeto) {
         return <p>Carregando...</p>;
     }
 
     return (
-        <div className="container mx-auto p-4 max-w-6xl">
-            {/* Cabeçalho do usuário */}
+        <div className="container mx-auto p-4 max-w-6xl">            {/* Cabeçalho do Dono do Projeto */}
             <div className="flex items-center mb-8">
                 <img
                     src={projeto.usuario_foto}
                     alt={projeto.usuario_nome}
-                    className="w-16 h-16 rounded-full mr-4 border-2 border-gray-300 object-cover cursor-pointer hover:border-brand-purple transition-colors"
+                    className="w-16 h-16 rounded-full mr-4 border-2 border-brand-purple object-cover cursor-pointer hover:border-brand-purple-dark transition-colors"
                     onClick={() => navigate(`/perfil/${projeto.usuario_id}`)}
                 />
                 <div>
@@ -320,10 +423,47 @@ const PortfolioProjectPage: React.FC = () => {
                         onClick={() => navigate(`/perfil/${projeto.usuario_id}`)}
                     >
                         {projeto.usuario_nome}
-                    </h1>
-                    <p className="text-sm text-gray-600">Estudante de Design Gráfico</p>
+                    </h1>                    <div>
+                        <span className="text-sm text-brand-purple">Criador do Projeto</span>
+                        <span className="text-sm text-gray-600"> • {projetoOwner?.tipo === 'designer' ? 'Designer' : projetoOwner?.tipo === 'programador' ? 'Programador' : 'Área não especificada'}</span>
+                    </div>
                 </div>
-            </div>
+            </div>            {/* Seção de Colaboradores */}
+            {colaboradores.length > 0 && colaboradores.some(c => !c.is_owner) && (
+                <div className="mb-8">
+                    <h2 className="text-xl font-semibold mb-4">Colaboradores do Projeto</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {colaboradores
+                            .filter(colaborador => !colaborador.is_owner)
+                            .map((colaborador) => (
+                                <div
+                                    key={colaborador.usuario_id}
+                                    className="flex items-center gap-4 bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+                                    onClick={() => navigate(`/perfil/${colaborador.usuario_id}`)}
+                                >
+                                    <img
+                                        src={normalizeUserImage(colaborador.foto_perfil)}
+                                        alt={colaborador.nome}
+                                        className="w-12 h-12 rounded-full border-2 border-gray-300 object-cover cursor-pointer hover:border-brand-purple transition-colors"
+                                    />
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="font-semibold cursor-pointer hover:text-brand-purple transition-colors">
+                                                {colaborador.nome}
+                                            </h3>
+                                            <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                                                Colaborador
+                                            </span>
+                                        </div>
+                                        <p className="text-sm text-gray-600">
+                                            {colaborador.tipo === 'designer' ? 'Designer' : colaborador.tipo === 'programador' ? 'Programador' : 'Área não especificada'}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                    </div>
+                </div>
+            )}
 
             {/* Título e Descrição */}
             <div className="mb-8">
@@ -398,8 +538,8 @@ const PortfolioProjectPage: React.FC = () => {
                                 {comentarios.length}
                             </span>
                         </div>
-                        {/* Botão de Conectar */}
-                        {projeto && projeto.usuario_id !== userId && (
+                        {/* Botão de Conectar - Mostrar apenas se não for dono nem colaborador */}
+                        {projeto && projeto.usuario_id !== userId && !isCollaborator && !isOwner && (
                             <div className="flex flex-col items-center gap-1">
                                 <button
                                     className="bg-white p-2 rounded-full shadow hover:bg-gray-200 flex items-center justify-center transform transition-all duration-200"
@@ -420,34 +560,34 @@ const PortfolioProjectPage: React.FC = () => {
                                 <span className="text-center text-sm font-medium text-green-500">
                                     Conectar
                                 </span>
-                                <ConnectionRequestModal
-                                    isOpen={isConnectionModalOpen}
-                                    onClose={() => setIsConnectionModalOpen(false)}
-                                    recipientName={projeto.usuario_nome || ''}
-                                    recipientId={projeto.usuario_id || 0}
-                                    connectedProjectId={projeto.projeto_id}
-                                    connectedProjectTitle={projeto.titulo}
-                                    onSend={async (data) => {
-                                        // Enviar solicitação para o backend
-                                        try {
-                                            await axios.post('/conexoes', {
-                                                ...data,
-                                                senderId: userId,
-                                                senderName: JSON.parse(localStorage.getItem('user') || '{}').nome || '',
-                                                senderFoto: JSON.parse(localStorage.getItem('user') || '{}').foto_perfil || '',
-                                                projetoId: projeto.projeto_id,
-                                                projetoTitle: projeto.titulo
-                                            }, {
-                                                headers: {
-                                                    'x-request-type': 'connection'
-                                                }
-                                            });
-                                            alert('Solicitação enviada!');
-                                        } catch (err) {
-                                            alert('Erro ao enviar solicitação.');
-                                        }
-                                    }}
-                                />
+                            </div>
+                        )}
+
+                        {/* Botão de Adicionar Dono - apenas para o dono */}
+                        {isOwner && (
+                            <div className="flex flex-col items-center gap-1">
+                                <button
+                                    className="bg-white p-2 rounded-full shadow hover:bg-gray-200 flex items-center justify-center transform transition-all duration-200"
+                                    title="Adicionar Colaborador"
+                                    onClick={() => setIsOwnerModalOpen(true)}
+                                >
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="0 0 24 24"
+                                        className="w-6 h-6 text-purple-500"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                    >
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                                        <circle cx="9" cy="7" r="4" />
+                                        <path d="M19 8v6" />
+                                        <path d="M16 11h6" />
+                                    </svg>
+                                </button>
+                                <span className="text-center text-sm font-medium text-purple-500">
+                                    Adicionar Colaborador
+                                </span>
                             </div>
                         )}
                     </div>
@@ -485,8 +625,8 @@ const PortfolioProjectPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Só mostrar os botões se o usuário for o dono do projeto */}
-                {projeto.usuario_id === userId && (
+                {/* Botões de edição - para donos e colaboradores */}
+                {canEdit && (
                     <div className="flex gap-2">
                         <label
                             htmlFor="adicionar-imagens"
@@ -519,7 +659,7 @@ const PortfolioProjectPage: React.FC = () => {
                             disabled={isUploading}
                         />
                         <button
-                            onClick={() => navigate(`/portfolio/${projectId}/edit`)}
+                            onClick={() => navigate(`/editar-projeto/${projectId}`)}
                             className="px-4 py-2 bg-brand-purple text-white rounded-lg hover:bg-brand-purple-dark transition-colors"
                         >
                             Editar Projeto
@@ -570,138 +710,92 @@ const PortfolioProjectPage: React.FC = () => {
                         rel="noopener noreferrer"
                         className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
                     >
-                        <svg className="w-5 h-5" viewBox="0 0 98 96" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z" fill="#24292f" /></svg>
+                        <svg className="w-5 h-5" viewBox="0 0 98 96" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.970 46.970 0 0117.548 0c9.301-6.356 13.301-5.052 13.301-5.052 2.67 6.763.973 11.816.478 13.038 3.075 3.422 5.014 7.822 5.014 13.2 0 18.905-11.404 23.138-22.243 24.283z" fill="#181717" /><path d="M49.204 24.633c-1.568 0-3.034.057-4.493.173-1.459.115-2.883.307-4.267.573-1.384.266-2.748.617-4.086 1.051-1.337.434-2.617.956-3.866 1.573-1.25.617-2.469 1.309-3.634 2.086-.165.127-.327.258-.487.392-.16.134-.318.267-.482.398-.163.131-.327.261-.493.386-.165.126-.33.253-.497.373-.164.12-.328.239-.494.353-.165.115-.33.229-.497.337-.165.107-.33.213-.497.317-.165.104-.33.207-.497.308-.165.101-.33.2-.497.297-.165.097-.33.191-.497.283-.165.092-.33.182-.497.267-.165.085-.33.173-.497.253-.165.08-.33.162-.497.238-.165.075-.33.148-.497.218-.165.07-.33.139-.497.204-.165.065-.33.131-.497.192-.165.061-.33.122-.497.178-.165.057-.33.113-.497.165-.165.053-.33.107-.497.156-.165.048-.33.095-.497.139-.165.043-.33.086-.497.126-.165.04-.33.079-.497.115-.165.036-.33.072-.497.104-.165.032-.33.064-.497.092-.165.028-.33.057-.497.082-.165.025-.33.051-.497.073-.165.022-.33.045-.497.065-.165.019-.33.038-.497.055-.165.017-.33.034-.497.05-.165.015-.33.03-.497.043-.165.013-.33.027-.497.038-.165.011-.33.022-.497.032-.165.01-.33.019-.497.027-.165.008-.33.015-.497.021-.165.006-.33.012-.497.017-.165.005-.33.01-.497.014-.165.004-.33.008-.497.011-.165.003-.33.007-.497.01-.165.003-.33.006-.497.009-.165.002-.33.005-.497.007-.165.002-.33.004-.497.006-.165.002-.33.004-.497.005-.165.001-.33.003-.497.004-.165.001-.33.002-.497.003-.165.001-.33.002-.497.002-.165.001-.33.001-.497.001z" fill="#F24E1E" /></svg>
                         Ver no GitHub
                     </a>
                 )}
             </div>
 
-            {/* Outros projetos */}
-            <div>
-                <h2 className="text-xl font-semibold mb-4">Acesse também outros projetos:</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    {outrosProjetos.map((projeto) => (
-                        <a
-                            key={projeto.projeto_id}
-                            href={`/portfolio/${projeto.projeto_id}`}
-                            className="block bg-purple-600 rounded-lg shadow-md overflow-hidden transform transition-transform hover:scale-105"
-                        >
-                            {/* Horizontal Image */}
-                            <div className="w-full">
-                                <img
-                                    src={`http://localhost:5000/${projeto.imagem_capa || projeto.imagens?.[0]}`}
-                                    alt={projeto.titulo}
-                                    className="w-full h-32 object-cover"
-                                />
-                            </div>
-                            {/* Content Below Image */}
-                            <div className="flex">
-                                {/* Left Section: User Details */}
-                                <div className="w-1/3 flex flex-col items-center justify-center p-2">
-                                    <img
-                                        src={projeto.usuario_foto || '/default-profile.png'}
-                                        alt={projeto.usuario_nome}
-                                        className="w-8 h-8 rounded-full mb-2 object-cover border border-gray-300"
-                                    />
-                                    <p className="text-xs font-medium text-white text-center">{projeto.usuario_nome || 'Usuário'}</p>
-                                </div>
-                                {/* Divider */}
-                                <div className="w-px bg-white"></div>
-                                {/* Right Section: Project Details */}
-                                <div className="w-2/3 p-2 text-white">
-                                    <h3 className="text-sm font-semibold mb-1">{projeto.titulo}</h3>
-                                    <p className="text-xs">{projeto.categoria || 'Sem categoria'}</p>
-                                </div>
-                            </div>
-                        </a>
-                    ))}
-                </div>
-            </div>
-
             {/* Seção de Comentários */}
-            <div id="comments-section" className="mt-16">
-                <h2 className="text-2xl font-semibold mb-8">Comentários ({comentarios.length})</h2>
+            <div className="mb-8">
+                <h2 className="text-xl font-semibold mb-4">Comentários</h2>
 
-                {/* Área para adicionar comentário */}
-                <div className="mb-8">
-                    <div className="flex items-start gap-4">
-                        <img
-                            src={JSON.parse(localStorage.getItem('user') || '{}').foto_perfil || '/default-profile.png'}
-                            alt="Seu perfil"
-                            className="w-10 h-10 rounded-full object-cover"
+                {/* Formulário de Comentário */}
+                <form onSubmit={handleCommentSubmit} className="mb-6">
+                    <div className="flex gap-4">
+                        <textarea
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                            placeholder="Escreva seu comentário..."
+                            className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-purple focus:border-transparent resize-none"
+                            rows={3}
                         />
-                        <div className="flex-1">
-                            <textarea
-                                placeholder="Adicione um comentário..."
-                                value={novoComentario}
-                                onChange={(e) => setNovoComentario(e.target.value)}
-                                className="w-full p-4 border rounded-lg focus:ring-2 focus:ring-brand-purple focus:border-transparent resize-none"
-                                rows={3}
-                            />
-                            <div className="flex justify-end mt-2">
-                                <button
-                                    onClick={handleAddComentario}
-                                    disabled={!novoComentario.trim()}
-                                    className={`px-4 py-2 bg-brand-purple text-white rounded-lg transition-colors ${!novoComentario.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:bg-brand-purple-dark'
-                                        }`}
-                                >
-                                    Comentar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Lista de comentários */}
-                <div className="space-y-6">
-                    {isLoadingComentarios ? (
-                        <div className="flex justify-center">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-purple"></div>
-                        </div>
-                    ) : comentarios.length > 0 ? (
-                        comentarios.map(comentario => (
-                            <div key={comentario.comentario_id} id={`comentario-${comentario.comentario_id}`} className="flex gap-4">
-                                <img
-                                    src={normalizeUserImage(comentario.usuario_foto)}
-                                    alt={comentario.usuario_nome}
-                                    className="w-10 h-10 rounded-full object-cover cursor-pointer hover:border-2 hover:border-brand-purple transition-all"
-                                    onClick={() => navigate(`/perfil/${comentario.usuario_id}`)}
-                                />
-                                <div className="flex-1">
-                                    <div className="bg-gray-50 rounded-lg p-4">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div>
-                                                <h3
-                                                    className="font-semibold cursor-pointer hover:text-brand-purple transition-colors"
-                                                    onClick={() => navigate(`/perfil/${comentario.usuario_id}`)}
-                                                >
-                                                    {comentario.usuario_nome}
-                                                </h3>
-                                                <p className="text-sm text-gray-500">
-                                                    {new Date(comentario.data_criacao).toLocaleDateString('pt-BR')}
-                                                </p>
-                                            </div>
-                                            {Number(userId) === comentario.usuario_id && (
-                                                <button
-                                                    onClick={() => handleDeleteComentario(comentario.comentario_id)}
-                                                    className="text-red-500 hover:text-red-700"
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                                                    </svg>
-                                                </button>
-                                            )}
-                                        </div>
-                                        <p className="text-gray-700 whitespace-pre-wrap">{comentario.texto}</p>
-                                    </div>
+                        <button
+                            type="submit"
+                            disabled={isSubmittingComment || !newComment.trim()}
+                            className={`px-6 py-2 h-fit rounded-lg text-white transition-colors ${isSubmittingComment || !newComment.trim()
+                                ? 'bg-gray-400 cursor-not-allowed'
+                                : 'bg-brand-purple hover:bg-brand-purple-dark'
+                                }`}
+                        >
+                            {isSubmittingComment ? (
+                                <div className="flex items-center gap-2">
+                                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Enviando...
                                 </div>
+                            ) : (
+                                'Comentar'
+                            )}
+                        </button>
+                    </div>
+                </form>
+
+                {/* Lista de Comentários */}
+                <div id="comments-section" className="flex flex-col gap-4">                    {comentarios.length === 0 ? (
+                    <p className="text-gray-500">Nenhum comentário ainda. Seja o primeiro a comentar!</p>
+                ) : (
+                    comentarios.map(comentario => (
+                        <div
+                            key={comentario.comentario_id}
+                            id={`comentario-${comentario.comentario_id}`}
+                            className="p-4 bg-white rounded-lg shadow-md flex gap-4"
+                        >
+                            <img
+                                src={normalizeUserImage(comentario.usuario_foto)}
+                                alt={comentario.usuario_nome}
+                                className="w-12 h-12 rounded-full border-2 border-gray-300 object-cover"
+                            />
+                            <div className="flex-1">
+                                <div className="flex justify-between items-center mb-2">
+                                    <h3 className="text-md font-semibold">{comentario.usuario_nome}</h3>
+                                    <span className="text-sm text-gray-500">{new Date(comentario.data_criacao).toLocaleString('pt-BR')}</span>
+                                </div>
+                                <p className="text-gray-700 whitespace-pre-wrap">{comentario.texto}</p>
                             </div>
-                        ))
-                    ) : (
-                        <p className="text-center text-gray-500">Nenhum comentário ainda. Seja o primeiro a comentar!</p>
-                    )}
+                        </div>
+                    ))
+                )}
                 </div>
-            </div>
+            </div>            {/* Modal para Solicitação de Conexão */}
+            <ConnectionRequestModal
+                isOpen={isConnectionModalOpen}
+                onClose={() => setIsConnectionModalOpen(false)}
+                recipientName={projeto?.usuario_nome || 'Usuário'}
+                recipientId={projeto?.usuario_id || 0}
+                onSend={async (data) => {
+                    try {
+                        await axios.post('/conexoes', data);
+                        setIsConnectionModalOpen(false);
+                        alert('Solicitação enviada com sucesso!');
+                    } catch (error) {
+                        console.error('Erro ao enviar solicitação:', error);
+                        alert('Erro ao enviar solicitação. Tente novamente.');
+                    }
+                }}
+            />
         </div>
     );
 };

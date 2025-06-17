@@ -23,11 +23,29 @@ const pool = new Pool({
 });
 
 // Test database connection
-pool.connect((err) => {
+pool.connect((err, client, release) => {
     if (err) {
-        console.error('Error connecting to the database', err);
+        console.error('Erro ao conectar ao banco de dados:', err);
     } else {
-        console.log('Connected to the database');
+        console.log('Conectado ao banco de dados');
+
+        // Verificar se a tabela existe
+        client.query(`
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'usuario'
+            );
+        `)
+            .then(result => {
+                console.log('A tabela usuario existe?', result.rows[0].exists);
+            })
+            .catch(error => {
+                console.error('Erro ao verificar tabela:', error);
+            })
+            .finally(() => {
+                release(); // Importante liberar o cliente
+            });
     }
 });
 
@@ -71,11 +89,16 @@ app.post('/usuarios', upload.single('foto_perfil'), async (req, res) => {
 
 app.get('/usuarios', async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM usuario');
-        res.status(200).json(result.rows);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Erro ao buscar usuários' });
+        console.log('Tentando buscar usuários...');
+        const result = await pool.query('SELECT usuario_id, nome, foto_perfil, tipo FROM public.usuario ORDER BY usuario_id ASC');
+        console.log('Usuários encontrados:', result.rows);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Erro detalhado ao buscar usuários:', error);
+        res.status(500).json({
+            error: 'Erro ao buscar usuários',
+            details: error.message
+        });
     }
 });
 
@@ -244,15 +267,71 @@ app.post('/projetos/:id/imagens', upload.array('imagens'), async (req, res) => {
 // Rotas para a tabela usuario_projeto
 app.post('/usuario-projeto', async (req, res) => {
     const { usuario_id, projeto_id, papel } = req.body;
+
+    console.log('Dados recebidos:', { usuario_id, projeto_id, papel });
+
+    // Validação dos dados
+    if (!usuario_id || !projeto_id || !papel) {
+        return res.status(400).json({
+            error: 'Dados incompletos',
+            message: 'usuario_id, projeto_id e papel são obrigatórios'
+        });
+    }
+
     try {
-        const result = await pool.query(
-            'INSERT INTO usuario_projeto (usuario_id, projeto_id, papel) VALUES ($1, $2, $3) RETURNING *',
+        // Primeiro, verifica se o projeto existe
+        const projectCheck = await pool.query(
+            'SELECT * FROM projeto WHERE projeto_id = $1',
+            [projeto_id]
+        );
+
+        if (projectCheck.rows.length === 0) {
+            return res.status(404).json({
+                error: 'Projeto não encontrado'
+            });
+        }
+
+        // Verifica se o usuário existe
+        const userCheck = await pool.query(
+            'SELECT * FROM usuario WHERE usuario_id = $1',
+            [usuario_id]
+        );
+
+        if (userCheck.rows.length === 0) {
+            return res.status(404).json({
+                error: 'Usuário não encontrado'
+            });
+        }
+
+        // Verifica se já existe essa relação
+        const existingCheck = await pool.query(
+            'SELECT * FROM usuario_projeto WHERE usuario_id = $1 AND projeto_id = $2',
+            [usuario_id, projeto_id]
+        );
+
+        if (existingCheck.rows.length > 0) {
+            return res.status(400).json({
+                error: 'Este usuário já está associado a este projeto'
+            });
+        }
+
+        // Adiciona o novo dono
+        await pool.query(
+            'INSERT INTO public.usuario_projeto (usuario_id, projeto_id, papel) VALUES ($1, $2, $3)',
             [usuario_id, projeto_id, papel]
         );
-        res.status(201).json(result.rows[0]);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Erro ao associar usuário ao projeto' });
+
+        console.log('Novo dono adicionado com sucesso');
+        res.status(201).json({
+            message: 'Novo dono adicionado com sucesso'
+        });
+    } catch (error) {
+        console.error('Erro detalhado ao adicionar dono:', error);
+        res.status(500).json({
+            error: 'Erro ao adicionar novo dono ao projeto',
+            details: error.message,
+            sqlError: error.code
+        });
     }
 });
 
@@ -263,6 +342,29 @@ app.get('/usuario-projeto', async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Erro ao buscar associações de usuários e projetos' });
+    }
+});
+
+// Rota para buscar todos os donos de um projeto
+app.get('/usuario-projeto/:projetoId', async (req, res) => {
+    const { projetoId } = req.params;
+
+    try {
+        console.log('Buscando donos para o projeto:', projetoId);
+        
+        const result = await pool.query(
+            'SELECT * FROM public.usuario_projeto WHERE projeto_id = $1',
+            [Number(projetoId)]  // Converte para número
+        );
+        
+        console.log('Donos encontrados:', result.rows);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Erro ao buscar donos do projeto:', error);
+        res.status(500).json({ 
+            error: 'Erro ao buscar donos do projeto',
+            details: error.message 
+        });
     }
 });
 
