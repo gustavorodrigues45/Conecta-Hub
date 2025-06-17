@@ -425,7 +425,8 @@ const PortfolioProjectPage: React.FC = () => {
                                     onClose={() => setIsConnectionModalOpen(false)}
                                     recipientName={projeto.usuario_nome || ''}
                                     recipientId={projeto.usuario_id || 0}
-                                    projectLink={window.location.href}
+                                    connectedProjectId={projeto.projeto_id}
+                                    connectedProjectTitle={projeto.titulo}
                                     onSend={async (data) => {
                                         // Enviar solicitação para o backend
                                         try {
@@ -434,7 +435,8 @@ const PortfolioProjectPage: React.FC = () => {
                                                 senderId: userId,
                                                 senderName: JSON.parse(localStorage.getItem('user') || '{}').nome || '',
                                                 senderFoto: JSON.parse(localStorage.getItem('user') || '{}').foto_perfil || '',
-                                                projetoId: projeto.projeto_id
+                                                projetoId: projeto.projeto_id,
+                                                projetoTitle: projeto.titulo
                                             }, {
                                                 headers: {
                                                     'x-request-type': 'connection'

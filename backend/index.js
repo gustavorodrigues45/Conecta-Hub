@@ -175,6 +175,36 @@ app.get('/projetos', async (req, res) => {
     }
 });
 
+// Rota de busca para projetos/portfólios
+app.get('/projetos/busca', async (req, res) => {
+    try {
+        const { q } = req.query; // q = query de busca
+
+        if (!q || q.trim() === '') {
+            // Se não há termo de busca, retorna todos os projetos
+            const result = await pool.query('SELECT * FROM projeto ORDER BY created_at DESC');
+            return res.status(200).json(result.rows);
+        }
+
+        const searchTerm = `%${q}%`;
+        const result = await pool.query(`
+            SELECT p.*, u.nome as usuario_nome, u.foto_perfil as usuario_foto
+            FROM projeto p
+            LEFT JOIN usuario u ON p.usuario_id = u.usuario_id
+            WHERE p.titulo ILIKE $1 
+               OR p.descricao ILIKE $1 
+               OR p.categoria ILIKE $1
+               OR u.nome ILIKE $1
+            ORDER BY p.created_at DESC
+        `, [searchTerm]);
+
+        res.status(200).json(result.rows);
+    } catch (err) {
+        console.error('Erro ao buscar projetos:', err);
+        res.status(500).json({ error: 'Erro ao buscar projetos' });
+    }
+});
+
 // Rota para adicionar imagens a um projeto existente
 app.post('/projetos/:id/imagens', upload.array('imagens'), async (req, res) => {
     const { id } = req.params;
@@ -598,6 +628,42 @@ app.get('/vagas', async (req, res) => {
     }
 });
 
+// Rota de busca para vagas
+app.get('/vagas/busca', async (req, res) => {
+    try {
+        const { q } = req.query; // q = query de busca
+
+        if (!q || q.trim() === '') {
+            // Se não há termo de busca, retorna todas as vagas
+            const result = await pool.query(`
+                SELECT v.*, u.nome as usuario_nome, u.foto_perfil as usuario_foto
+                FROM vagas v
+                LEFT JOIN usuario u ON v.usuario_id = u.usuario_id
+                ORDER BY v.created_at DESC
+            `);
+            return res.status(200).json(result.rows);
+        }
+
+        const searchTerm = `%${q}%`;
+        const result = await pool.query(`
+            SELECT v.*, u.nome as usuario_nome, u.foto_perfil as usuario_foto
+            FROM vagas v
+            LEFT JOIN usuario u ON v.usuario_id = u.usuario_id
+            WHERE v.titulo ILIKE $1 
+               OR v.empresa ILIKE $1 
+               OR v.descricao ILIKE $1 
+               OR v.tipo_trabalho ILIKE $1
+               OR v.formato_trabalho ILIKE $1
+            ORDER BY v.created_at DESC
+        `, [searchTerm]);
+
+        res.status(200).json(result.rows);
+    } catch (err) {
+        console.error('Erro ao buscar vagas:', err);
+        res.status(500).json({ error: 'Erro ao buscar vagas' });
+    }
+});
+
 app.get('/vagas/:id', async (req, res) => {
     try {
         const { id } = req.params;
@@ -722,8 +788,7 @@ app.put('/conexoes/:id', async (req, res) => {
 app.get('/usuarios/:id/notificacoes', async (req, res) => {
     const { id } = req.params;
     try {
-        const result = await pool.query(`
-            SELECT n.*, 
+        const result = await pool.query(`            SELECT n.*, 
                    u.nome as usuario_nome, 
                    u.foto_perfil as usuario_foto,
                    p.titulo as projeto_titulo
@@ -778,9 +843,13 @@ app.get('/usuarios/:id/conexoes-recebidas', async (req, res) => {
     const { id } = req.params;
     try {
         const result = await pool.query(
-            `SELECT uc.*, u.nome as sender_nome, u.foto_perfil as sender_foto
+            `SELECT uc.*, 
+                    u.nome as sender_nome, 
+                    u.foto_perfil as sender_foto,
+                    p.titulo as projeto_titulo
              FROM user_connections uc
              JOIN usuario u ON uc.sender_id = u.usuario_id
+             LEFT JOIN projeto p ON uc.projeto_id = p.projeto_id
              WHERE uc.recipient_id = $1
              ORDER BY uc.created_at DESC`,
             [id]
@@ -838,8 +907,7 @@ app.put('/conexoes/:id/recusar', async (req, res) => {
 app.get('/chats/user/:userId', async (req, res) => {
     const { userId } = req.params;
     try {
-        const result = await pool.query(`
-            SELECT c.*, 
+        const result = await pool.query(`            SELECT c.*, 
                 u1.nome as user1_nome, u1.foto_perfil as user1_foto,
                 u2.nome as user2_nome, u2.foto_perfil as user2_foto
             FROM user_chats c
@@ -891,12 +959,22 @@ app.post('/chats/:chatId/messages', async (req, res) => {
 app.get('/chats/:chatId/messages', async (req, res) => {
     const { chatId } = req.params;
     try {
+        // Buscar mensagens com informações dos usuários diretamente
         const result = await pool.query(
-            `SELECT * FROM user_messages WHERE chat_id = $1 ORDER BY created_at ASC`,
+            `SELECT m.*, 
+                u.nome as sender_nome,
+                u.foto_perfil as sender_foto
+            FROM user_messages m
+            JOIN usuario u ON m.sender_id = u.usuario_id
+            WHERE m.chat_id = $1 
+            ORDER BY m.created_at ASC`,
             [chatId]
         );
+
+        console.log('Mensagens encontradas:', result.rows); // Debug
         res.json(result.rows);
     } catch (err) {
+        console.error('Erro ao buscar mensagens:', err);
         res.status(500).json({ error: 'Erro ao buscar mensagens' });
     }
 });
@@ -904,12 +982,22 @@ app.get('/chats/:chatId/messages', async (req, res) => {
 app.get('/chats/:chatId', async (req, res) => {
     const { chatId } = req.params;
     try {
-        const result = await pool.query('SELECT * FROM user_chats WHERE id = $1', [chatId]);
+        const result = await pool.query(`
+            SELECT c.*, 
+                u1.nome as user1_nome, u1.foto_perfil as user1_foto,
+                u2.nome as user2_nome, u2.foto_perfil as user2_foto
+            FROM user_chats c
+            JOIN usuario u1 ON c.user1_id = u1.usuario_id
+            JOIN usuario u2 ON c.user2_id = u2.usuario_id
+            WHERE c.id = $1
+        `, [chatId]);
+
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Chat não encontrado' });
         }
         res.json(result.rows[0]);
     } catch (err) {
+        console.error('Erro ao buscar chat:', err);
         res.status(500).json({ error: 'Erro ao buscar chat' });
     }
 });
@@ -918,3 +1006,5 @@ app.get('/chats/:chatId', async (req, res) => {
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
 });
+
+

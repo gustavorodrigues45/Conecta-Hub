@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 interface Projeto {
     projeto_id: number;
@@ -28,10 +28,23 @@ interface Notificacao {
     tipo: 'curtida' | 'comentario';
     usuario_nome: string;
     usuario_foto: string;
+    usuario_origem_id: number;
     projeto_titulo: string;
     projeto_id: number;
     comentario_texto?: string;
     comentario_id?: number;
+}
+
+interface SolicitacaoConexao {
+    id: number;
+    sender_foto: string;
+    sender_nome: string;
+    connection_type: string;
+    reason: string;
+    link?: string; // Agora para um link de portfólio geral
+    sender_id: number;
+    projeto_id?: number; // ID do projeto se a conexão for para um projeto específico
+    projeto_titulo?: string; // Título do projeto se a conexão for para um projeto específico
 }
 
 const ProfilePage: React.FC = () => {
@@ -43,7 +56,7 @@ const ProfilePage: React.FC = () => {
     const [isEditingDesc, setIsEditingDesc] = useState(false);
     const [newDesc, setNewDesc] = useState('');
     const [notificacoes, setNotificacoes] = useState<Notificacao[]>([]);
-    const [solicitacoesConexao, setSolicitacoesConexao] = useState<any[]>([]);
+    const [solicitacoesConexao, setSolicitacoesConexao] = useState<SolicitacaoConexao[]>([]);
     const [chats, setChats] = useState<any[]>([]);
     const userId = JSON.parse(localStorage.getItem('user') || '{}').usuario_id;
 
@@ -166,13 +179,15 @@ const ProfilePage: React.FC = () => {
             {notificacoes.length > 0 ? (
                 notificacoes.map((notif) => (
                     <div key={notif.notificacao_id} className="bg-purple-300 rounded-2xl p-3 flex items-center gap-3">
-                        <img
-                            src={notif.usuario_foto ? `http://localhost:5000/${notif.usuario_foto}` : '/default-profile.png'}
-                            alt={notif.usuario_nome}
-                            className="w-10 h-10 rounded-full object-cover"
-                        />
-                        <div className="flex-1">
+                        <Link to={`/perfil/${notif.usuario_origem_id}`} className="flex items-center gap-3">
+                            <img
+                                src={notif.usuario_foto ? `http://localhost:5000/${notif.usuario_foto}` : '/default-profile.png'}
+                                alt={notif.usuario_nome}
+                                className="w-10 h-10 rounded-full object-cover"
+                            />
                             <span className="font-semibold mr-2">@{notif.usuario_nome}</span>
+                        </Link>
+                        <div className="flex-1">
                             <span>
                                 {notif.tipo === 'curtida'
                                     ? <>curtiu seu projeto - <span className="font-semibold">{notif.projeto_titulo}</span></>
@@ -214,16 +229,24 @@ const ProfilePage: React.FC = () => {
             {solicitacoesConexao.length > 0 ? (
                 solicitacoesConexao.map((sol) => (
                     <div key={sol.id} className="bg-purple-100 rounded-2xl p-3 flex items-center gap-3">
-                        <img
-                            src={sol.sender_foto ? `http://localhost:5000/${sol.sender_foto}` : '/default-profile.png'}
-                            alt={sol.sender_nome}
-                            className="w-10 h-10 rounded-full object-cover"
-                        />
-                        <div className="flex-1">
+                        <Link to={`/perfil/${sol.sender_id}`} className="flex items-center gap-3">
+                            <img
+                                src={sol.sender_foto ? `http://localhost:5000/${sol.sender_foto}` : '/default-profile.png'}
+                                alt={sol.sender_nome}
+                                className="w-10 h-10 rounded-full object-cover"
+                            />
                             <span className="font-semibold mr-2">@{sol.sender_nome}</span>
+                        </Link>
+                        <div className="flex-1">
                             <span>quer se conectar: <span className="font-semibold">{sol.connection_type}</span></span>
                             <div className="text-xs text-gray-700 mt-1 italic">{sol.reason}</div>
-                            {sol.link && <div className="text-xs text-blue-700 mt-1"><a href={sol.link} target="_blank" rel="noopener noreferrer">{sol.link}</a></div>}
+                            {sol.projeto_titulo && sol.projeto_id ? (
+                                <div className="text-xs text-blue-700 mt-1">
+                                    Convidando para o projeto: <a href={`/portfolio/${sol.projeto_id}`} target="_blank" rel="noopener noreferrer" className="underline font-medium">
+                                        {sol.projeto_titulo}
+                                    </a>
+                                </div>
+                            ) : (sol.link && <div className="text-xs text-blue-700 mt-1"><a href={sol.link} target="_blank" rel="noopener noreferrer">{sol.link}</a></div>)}
                             <div className="flex gap-2 mt-2">
                                 <button
                                     onClick={() => handleAceitarConexao(sol.id, sol.sender_id)}
@@ -307,7 +330,11 @@ const ProfilePage: React.FC = () => {
                 {/* Informações do Usuário */}
                 <div className="flex-1">
                     <h1 className="text-3xl font-bold mb-2">{usuario.nome}</h1>
-                    <p className="text-gray-600 mb-4">Estudante de {usuario.tipo === 'designer' ? 'Design Gráfico' : 'Ciência da Computação'}</p>
+                    <p className="text-gray-600 mb-4">
+                        {usuario.tipo === 'designer' ? 'Designer' :
+                            usuario.tipo === 'programador' ? 'Programador(a)' :
+                                'Empresário(a)'}
+                    </p>
 
                     {isEditingDesc ? (
                         <div className="mb-4">

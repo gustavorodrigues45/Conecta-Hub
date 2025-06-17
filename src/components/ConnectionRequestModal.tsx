@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface ConnectionRequestModalProps {
     isOpen: boolean;
     onClose: () => void;
     recipientName: string;
     recipientId: number;
-    projectLink?: string;
-    onSend: (data: any) => void;
+    connectedProjectId?: number;
+    connectedProjectTitle?: string;
+    onSend: (data: { recipientId: number; reason: string; link: string; connectionType: string; projetoId?: number; projetoTitle?: string }) => void;
 }
 
 const connectionTypes = [
@@ -21,13 +22,23 @@ const ConnectionRequestModal: React.FC<ConnectionRequestModalProps> = ({
     onClose,
     recipientName,
     recipientId,
-    projectLink = '',
+    connectedProjectId,
+    connectedProjectTitle,
     onSend
 }) => {
     const [reason, setReason] = useState('');
-    const [link, setLink] = useState(projectLink);
+    const [portfolioLink, setPortfolioLink] = useState('');
     const [connectionType, setConnectionType] = useState(connectionTypes[0]);
     const [otherType, setOtherType] = useState('');
+
+    useEffect(() => {
+        if (isOpen) {
+            setPortfolioLink('');
+            setReason('');
+            setConnectionType(connectionTypes[0]);
+            setOtherType('');
+        }
+    }, [isOpen, connectedProjectId]);
 
     if (!isOpen) return null;
 
@@ -36,13 +47,11 @@ const ConnectionRequestModal: React.FC<ConnectionRequestModalProps> = ({
         onSend({
             recipientId,
             reason,
-            link,
-            connectionType: connectionType === 'Outro (campo livre)' ? otherType : connectionType
+            link: portfolioLink,
+            connectionType: connectionType === 'Outro (campo livre)' ? otherType : connectionType,
+            projetoId: connectedProjectId,
+            projetoTitle: connectedProjectTitle
         });
-        setReason('');
-        setLink(projectLink);
-        setConnectionType(connectionTypes[0]);
-        setOtherType('');
         onClose();
     };
 
@@ -71,16 +80,30 @@ const ConnectionRequestModal: React.FC<ConnectionRequestModalProps> = ({
                             className="w-full rounded-xl px-4 py-2 border border-gray-300"
                         />
                     </div>
-                    <div>
-                        <label className="block mb-1">Deseja convidar para um projeto específico?</label>
-                        <input
-                            type="text"
-                            value={link}
-                            onChange={e => setLink(e.target.value)}
-                            placeholder="Link do portfólio"
-                            className="w-full rounded-xl px-4 py-2 border border-gray-300"
-                        />
-                    </div>
+
+                    {connectedProjectId ? (
+                        <div>
+                            <label className="block mb-1">Convidando para o projeto:</label>
+                            <input
+                                type="text"
+                                value={connectedProjectTitle || ''}
+                                disabled
+                                className="w-full rounded-xl px-4 py-2 border border-gray-300 bg-gray-100"
+                            />
+                        </div>
+                    ) : (
+                        <div>
+                            <label className="block mb-1">Link do seu Portfólio (Opcional):</label>
+                            <input
+                                type="text"
+                                value={portfolioLink}
+                                onChange={e => setPortfolioLink(e.target.value)}
+                                placeholder="Link para seu portfólio ou projeto"
+                                className="w-full rounded-xl px-4 py-2 border border-gray-300"
+                            />
+                        </div>
+                    )}
+
                     <div>
                         <label className="block mb-1">Selecionar um tipo de conexão:</label>
                         <select

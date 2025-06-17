@@ -7,7 +7,7 @@ const CadastroPage: React.FC = () => {
     const [email, setEmail] = useState('');
     const [senha, setSenha] = useState('');
     const [confirmarSenha, setConfirmarSenha] = useState('');
-    const [tipoUsuario, setTipoUsuario] = useState<'designer' | 'programador' | ''>('');
+    const [tipoUsuario, setTipoUsuario] = useState<'designer' | 'programador' | 'empresario' | ''>('');
     const [github, setGithub] = useState('');
     const [googleDrive, setGoogleDrive] = useState('');
     const [fotoPerfil, setFotoPerfil] = useState<File | null>(null);
@@ -111,37 +111,50 @@ const CadastroPage: React.FC = () => {
                         <label className="block text-sm font-medium text-brand-purple-dark mb-1">Tipo de Usuário</label>
                         <select
                             value={tipoUsuario}
-                            onChange={(e) => setTipoUsuario(e.target.value as 'designer' | 'programador')}
+                            onChange={(e) => setTipoUsuario(e.target.value as 'designer' | 'programador' | 'empresario')}
                             required
                             className="w-full px-4 py-3 rounded-xl border-2 border-brand-purple bg-white text-brand-text focus:ring-2 focus:ring-brand-yellow outline-none shadow-sm"
                         >
                             <option value="" disabled>Selecione seu perfil...</option>
                             <option value="designer">Designer</option>
                             <option value="programador">Programador(a)</option>
+                            <option value="empresario">Empresário(a)</option>
                         </select>
                     </div>
-                    <div>
-                        <label htmlFor="github" className="block text-sm font-medium text-brand-purple-dark mb-1">Link do GitHub (Opcional)</label>
-                        <input
-                            type="url"
-                            id="github"
-                            placeholder="https://github.com/seu-usuario"
-                            value={github}
-                            onChange={(e) => setGithub(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl border-2 border-brand-purple bg-white text-brand-text placeholder-gray-500 focus:ring-2 focus:ring-brand-yellow outline-none shadow-sm"
-                        />
-                    </div>
-                    <div>
-                        <label htmlFor="googleDrive" className="block text-sm font-medium text-brand-purple-dark mb-1">Link do Google Drive / Portfólio (Opcional)</label>
-                        <input
-                            type="url"
-                            id="googleDrive"
-                            placeholder="Link para seu portfólio online"
-                            value={googleDrive}
-                            onChange={(e) => setGoogleDrive(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl border-2 border-brand-purple bg-white text-brand-text placeholder-gray-500 focus:ring-2 focus:ring-brand-yellow outline-none shadow-sm"
-                        />
-                    </div>
+
+                    {/* Campos opcionais - mostrar apenas para designers e programadores */}
+                    {(tipoUsuario === 'programador') && (
+                        <>
+                            <div>
+                                <label htmlFor="github" className="block text-sm font-medium text-brand-purple-dark mb-1">Link do GitHub (Opcional)</label>
+                                <input
+                                    type="url"
+                                    id="github"
+                                    placeholder="https://github.com/seu-usuario"
+                                    value={github}
+                                    onChange={(e) => setGithub(e.target.value)}
+                                    className="w-full px-4 py-3 rounded-xl border-2 border-brand-purple bg-white text-brand-text placeholder-gray-500 focus:ring-2 focus:ring-brand-yellow outline-none shadow-sm"
+                                />
+                            </div>
+                        </>
+                    )}
+
+                    {(tipoUsuario === 'designer' || tipoUsuario === 'programador') && (
+                        <>
+                            <div>
+                                <label htmlFor="googleDrive" className="block text-sm font-medium text-brand-purple-dark mb-1">Link do Google Drive / Portfólio (Opcional)</label>
+                                <input
+                                    type="url"
+                                    id="googleDrive"
+                                    placeholder="Link para seu portfólio online"
+                                    value={googleDrive}
+                                    onChange={(e) => setGoogleDrive(e.target.value)}
+                                    className="w-full px-4 py-3 rounded-xl border-2 border-brand-purple bg-white text-brand-text placeholder-gray-500 focus:ring-2 focus:ring-brand-yellow outline-none shadow-sm"
+                                />
+                            </div>
+                        </>
+                    )}
+
                     <div className="mb-4">
                         <label htmlFor="fotoPerfil" className="block text-sm font-medium text-gray-700">Foto de Perfil</label>
                         <input

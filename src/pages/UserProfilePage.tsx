@@ -1,14 +1,20 @@
 // src/pages/UserProfilePage.tsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useUser } from '../context/UserContext';
 
 interface Projeto {
   projeto_id: number;
   titulo: string;
   descricao: string;
-  imagem_capa: string;
-  usuario_id: number;
+  imagem_capa?: string;
+  imagens?: string[];
+  link_figma?: string;
+  link_github?: string;
+  link_drive?: string;
+  categoria?: string;
+  usuario_id?: number;
   usuario_nome?: string;
   usuario_foto?: string;
 }
@@ -26,80 +32,62 @@ interface Usuario {
 
 const normalizeUserImage = (foto_perfil?: string | null) => {
   if (!foto_perfil) return '/default-profile.png';
-  if (foto_perfil.startsWith('uploads/')) {
-    return `http://localhost:5000/${foto_perfil}`;
-  }
-  if (foto_perfil.startsWith('http')) {
-    return foto_perfil;
-  }
-  return `/default-profile.png`;
+  if (foto_perfil.startsWith('http')) return foto_perfil;
+  // Remove barras invertidas e monta o caminho igual ao PortfolioPage
+  const cleanPath = foto_perfil.replace(/\\/g, '/');
+  return `http://localhost:5000/${cleanPath}`;
 };
 
 const UserProfilePage: React.FC = () => {
-  const { userId } = useParams();
+  const { userId: paramUserId } = useParams<{ userId: string }>();
+  // Garante que otherUserId é um número válido ou null
+  const otherUserId = paramUserId ? parseInt(paramUserId) : null;
+  console.log('ID da URL (string paramUserId):', paramUserId);
+  console.log('otherUserId (parsed):', otherUserId);
+
   const navigate = useNavigate();
+  const { user: loggedInUser } = useUser();
+
   const [activeTab, setActiveTab] = useState('portfolio');
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Determinar se o perfil visualizado é o perfil do usuário logado
+  const isMyProfile = loggedInUser?.usuario_id === otherUserId;
+
   useEffect(() => {
     const fetchUserData = async () => {
-      if (!userId) return;
-
+      // Verifica se otherUserId é um número válido e positivo
+      if (typeof otherUserId !== 'number' || isNaN(otherUserId) || otherUserId <= 0) {
+        setError('ID de usuário inválido.');
+        setLoading(false);
+        return;
+      }
       try {
-        setLoading(true);
-        console.log('Buscando usuário ID:', userId);
-        const response = await axios.get(`/usuarios/${userId}`);
-        console.log('Resposta do usuário:', response.data);
-
-        if (!response.data) {
-          throw new Error('Usuário não encontrado');
-        }
-
-        // Normaliza os dados do usuário
-        const userData = {
-          ...response.data,
-          foto_perfil: response.data.foto_perfil || null,
-          descricao: response.data.descricao || null,
-          tipo: response.data.tipo || 'programador',
-          github: response.data.github || '',
-          google_drive: response.data.google_drive || ''
-        };
-
-        console.log('Dados do usuário normalizados:', userData);
-        setUsuario(userData);
-        setError(null);
-      } catch (error: any) {
-        console.error('Erro ao buscar dados do usuário:', error);
-        setError(error.response?.data?.message || 'Usuário não encontrado');
+        console.log('Tentando buscar dados do usuário para ID:', otherUserId);
+        const response = await axios.get(`/usuarios/${otherUserId}`);
+        console.log('Resposta da API para dados do usuário:', response.data);
+        setUsuario(response.data);
+      } catch (err) {
+        console.error('Erro ao buscar dados do usuário:', err);
+        setError('Não foi possível carregar os dados do usuário.');
       } finally {
         setLoading(false);
       }
     };
 
     const fetchProjetos = async () => {
-      if (!userId) return;
-
+      // Verifica se otherUserId é um número válido e positivo
+      if (typeof otherUserId !== 'number' || isNaN(otherUserId) || otherUserId <= 0) return;
       try {
-        console.log('Buscando projetos para usuário:', userId);
+        console.log('Tentando buscar projetos para usuário ID:', otherUserId);
         const response = await axios.get('/projetos');
-
-        if (!response.data) {
-          console.log('Nenhum projeto encontrado');
-          setProjetos([]);
-          return;
-        }
-
+        console.log('Resposta da API para projetos:', response.data);
         const projetosDoUsuario = response.data.filter(
-          (projeto: Projeto) => projeto.usuario_id && projeto.usuario_id === Number(userId)
-        ).map((projeto: Projeto) => ({
-          ...projeto,
-          imagem_capa: projeto.imagem_capa?.replace(/\\/g, '/') || ''
-        }));
-
-        console.log('Projetos encontrados:', projetosDoUsuario);
+          (projeto: Projeto) => projeto.usuario_id === otherUserId
+        );
         setProjetos(projetosDoUsuario);
       } catch (error) {
         console.error('Erro ao buscar projetos:', error);
@@ -109,7 +97,7 @@ const UserProfilePage: React.FC = () => {
 
     fetchUserData();
     fetchProjetos();
-  }, [userId]);
+  }, [otherUserId]);
 
   if (loading) {
     return (
@@ -158,7 +146,11 @@ const UserProfilePage: React.FC = () => {
           {/* Informações do Usuário */}
           <div className="flex-1">
             <h1 className="text-3xl font-bold mb-2">{usuario.nome}</h1>
-            <p className="text-gray-600 mb-4">Estudante de {usuario.tipo === 'designer' ? 'Design Gráfico' : 'Ciência da Computação'}</p>
+            <p className="text-gray-600 mb-4">
+              {usuario.tipo === 'designer' ? 'Designer' :
+                usuario.tipo === 'programador' ? 'Programador(a)' :
+                  'Empresário(a)'}
+            </p>
 
             <div className="mb-4">
               <p className="text-gray-700 whitespace-pre-wrap">
@@ -212,24 +204,28 @@ const UserProfilePage: React.FC = () => {
           >
             Portfólio
           </button>
-          <button
-            onClick={() => setActiveTab('salvos')}
-            className={`px-8 py-3 rounded-full text-lg font-medium transition-all ${activeTab === 'salvos'
-              ? 'bg-brand-purple text-white shadow-lg'
-              : 'bg-[#E8C4D3] text-brand-purple hover:bg-opacity-80'
-              }`}
-          >
-            Salvos
-          </button>
-          <button
-            onClick={() => setActiveTab('conexoes')}
-            className={`px-8 py-3 rounded-full text-lg font-medium transition-all ${activeTab === 'conexoes'
-              ? 'bg-brand-purple text-white shadow-lg'
-              : 'bg-[#E8C4D3] text-brand-purple hover:bg-opacity-80'
-              }`}
-          >
-            Conexões
-          </button>
+          {isMyProfile && (
+            <button
+              onClick={() => setActiveTab('salvos')}
+              className={`px-8 py-3 rounded-full text-lg font-medium transition-all ${activeTab === 'salvos'
+                ? 'bg-brand-purple text-white shadow-lg'
+                : 'bg-[#E8C4D3] text-brand-purple hover:bg-opacity-80'
+                }`}
+            >
+              Salvos
+            </button>
+          )}
+          {isMyProfile && (
+            <button
+              onClick={() => setActiveTab('conexoes')}
+              className={`px-8 py-3 rounded-full text-lg font-medium transition-all ${activeTab === 'conexoes'
+                ? 'bg-brand-purple text-white shadow-lg'
+                : 'bg-[#E8C4D3] text-brand-purple hover:bg-opacity-80'
+                }`}
+            >
+              Conexões
+            </button>
+          )}
           <button
             onClick={() => setActiveTab('conquistas')}
             className={`px-8 py-3 rounded-full text-lg font-medium transition-all ${activeTab === 'conquistas'
@@ -275,14 +271,26 @@ const UserProfilePage: React.FC = () => {
           </div>
         )}
         {activeTab === 'salvos' && (
-          <div className="text-center text-gray-500 py-8">
-            Funcionalidade em desenvolvimento
-          </div>
+          isMyProfile ? (
+            <div className="text-center text-gray-500 py-8">
+              Funcionalidade em desenvolvimento
+            </div>
+          ) : (
+            <div className="text-center text-gray-500 py-8">
+              Esta aba não está disponível para outros usuários.
+            </div>
+          )
         )}
         {activeTab === 'conexoes' && (
-          <div className="text-center text-gray-500 py-8">
-            Funcionalidade em desenvolvimento
-          </div>
+          isMyProfile ? (
+            <div className="text-center text-gray-500 py-8">
+              Funcionalidade em desenvolvimento
+            </div>
+          ) : (
+            <div className="text-center text-gray-500 py-8">
+              Esta aba não está disponível para outros usuários.
+            </div>
+          )
         )}
         {activeTab === 'conquistas' && (
           <div className="text-center text-gray-500 py-8">

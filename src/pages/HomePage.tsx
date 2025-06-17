@@ -29,14 +29,14 @@ const mockAmigosPostando = [
 ];
 
 const mockConexoesRecentes = [
-    { id: 1, name: "Ana", img: "/src/assets/images/avatar-ana.png" },
-    { id: 2, name: "Bruno", img: "/src/assets/images/avatar-bruno.png" },
-    { id: 3, name: "Carla", img: "/src/assets/images/avatar-carla.png" },
-    { id: 4, name: "Daniel", img: "/src/assets/images/avatar-daniel.png" },
-    { id: 5, name: "Elisa", img: "/src/assets/images/avatar-elisa.png" },
-    { id: 6, name: "Fernando", img: "/src/assets/images/avatar-fernando.png" },
-    { id: 7, name: "Sofia", img: "/src/assets/images/avatar-sofia.png" },
-    { id: 8, name: "Mariana", img: "/src/assets/images/avatar-mariana.png" },
+  { id: 1, name: "Ana", img: "/src/assets/images/avatar-ana.png" },
+  { id: 2, name: "Bruno", img: "/src/assets/images/avatar-bruno.png" },
+  { id: 3, name: "Carla", img: "/src/assets/images/avatar-carla.png" },
+  { id: 4, name: "Daniel", img: "/src/assets/images/avatar-daniel.png" },
+  { id: 5, name: "Elisa", img: "/src/assets/images/avatar-elisa.png" },
+  { id: 6, name: "Fernando", img: "/src/assets/images/avatar-fernando.png" },
+  { id: 7, name: "Sofia", img: "/src/assets/images/avatar-sofia.png" },
+  { id: 8, name: "Mariana", img: "/src/assets/images/avatar-mariana.png" },
 ];
 
 
@@ -141,7 +141,7 @@ const HomePage: React.FC = () => {
       {/* O que seus amigos estão postando */}
       <section>
         <h2 className="text-3xl font-bold text-brand-purple-dark mb-6">O que seus amigos estão postando</h2>
-         <div ref={sliderRefAmigos} className="keen-slider">
+        <div ref={sliderRefAmigos} className="keen-slider">
           {mockAmigosPostando.map(post => (
             <div key={post.id} className="keen-slider__slide bg-white rounded-xl shadow-card overflow-hidden">
               <img src={post.projectImg} alt={post.projectTitle} className="w-full h-40 object-cover" />
@@ -157,28 +157,28 @@ const HomePage: React.FC = () => {
           ))}
         </div>
       </section>
-      
+
       {/* Rede de Conexões Recentes */}
       <section>
         <h2 className="text-3xl font-bold text-brand-purple-dark mb-6">Rede de Conexões Recentes</h2>
         <div className="bg-slate-800 p-8 rounded-2xl shadow-xl relative">
-           {/* Network visualization placeholder - this would require a more complex component or library */}
-           <div className="flex flex-wrap justify-center items-center gap-4">
+          {/* Network visualization placeholder - this would require a more complex component or library */}
+          <div className="flex flex-wrap justify-center items-center gap-4">
             {mockConexoesRecentes.map(conexao => (
-                <img 
-                    key={conexao.id} 
-                    src={conexao.img} 
-                    alt={conexao.name} 
-                    title={conexao.name}
-                    className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover border-4 border-brand-purple-light shadow-md"
-                />
+              <img
+                key={conexao.id}
+                src={conexao.img}
+                alt={conexao.name}
+                title={conexao.name}
+                className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover border-4 border-brand-purple-light shadow-md"
+              />
             ))}
-           </div>
-           <p className="text-center text-slate-300 mt-6">Conecte-se com outros talentos e expanda sua rede!</p>
+          </div>
+          <p className="text-center text-slate-300 mt-6">Conecte-se com outros talentos e expanda sua rede!</p>
         </div>
       </section>
 
-       {/* "Sobre a plataforma" "Encontre o time ideal" "Por que usar Conecta?" - from home_landing.png */}
+      {/* "Sobre a plataforma" "Encontre o time ideal" "Por que usar Conecta?" - from home_landing.png */}
       <section className="py-12 space-y-16">
         {/* Sobre a plataforma */}
         <div className="flex flex-col md:flex-row items-center gap-8 md:gap-12 bg-brand-purple-light p-8 md:p-12 rounded-2xl shadow-card">
@@ -204,46 +204,46 @@ const HomePage: React.FC = () => {
             <p className="text-brand-text leading-relaxed">
               Publique seus briefings, explore projetos de outros talentos e forme parcerias para desenvolver soluções inovadoras. Acreditamos no poder da colaboração para impulsionar a criatividade.
             </p>
-             <Link to="/portfolio" className="mt-6 inline-flex items-center text-brand-purple-dark font-semibold hover:text-brand-purple">
+            <Link to="/portfolio" className="mt-6 inline-flex items-center text-brand-purple-dark font-semibold hover:text-brand-purple">
               Buscar Projetos <ArrowRightIcon />
             </Link>
           </div>
           <div className="md:w-1/2">
-             {/* Placeholder for teamwork image or illustration */}
+            {/* Placeholder for teamwork image or illustration */}
             <img src="/src/assets/images/teamwork-illustration.png" alt="Time ideal" className="rounded-lg w-full" />
           </div>
         </div>
-        
+
         {/* Por que usar Conecta? */}
         <div className="flex flex-col md:flex-row items-stretch gap-0 rounded-2xl shadow-card overflow-hidden">
-            <div className="md:w-1/2 bg-slate-800 text-white p-8 md:p-12 flex flex-col justify-center">
-                <h3 className="text-3xl md:text-4xl font-bold mb-6">Por que usar o <span className="text-brand-yellow">Conecta</span>?</h3>
-            </div>
-            <div className="md:w-1/2 bg-brand-purple-light p-8 md:p-12">
-                <ul className="space-y-6">
-                    <li className="flex items-start">
-                        <PartnershipIcon />
-                        <div className="ml-4">
-                            <h4 className="font-semibold text-xl text-brand-purple-dark">Parcerias de Sucesso</h4>
-                            <p className="text-brand-text-secondary">Conecte-se com talentos complementares.</p>
-                        </div>
-                    </li>
-                    <li className="flex items-start">
-                        <ShowcaseIcon />
-                        <div className="ml-4">
-                            <h4 className="font-semibold text-xl text-brand-purple-dark">Divulgação do seu Trabalho</h4>
-                            <p className="text-brand-text-secondary">Construa um portfólio impactante.</p>
-                        </div>
-                    </li>
-                    <li className="flex items-start">
-                        <LearningIcon />
-                        <div className="ml-4">
-                            <h4 className="font-semibold text-xl text-brand-purple-dark">Aprendizagem Prática e Rápida</h4>
-                            <p className="text-brand-text-secondary">Desenvolva habilidades em projetos reais.</p>
-                        </div>
-                    </li>
-                </ul>
-            </div>
+          <div className="md:w-1/2 bg-slate-800 text-white p-8 md:p-12 flex flex-col justify-center">
+            <h3 className="text-3xl md:text-4xl font-bold mb-6">Por que usar o <span className="text-brand-yellow">Conecta</span>?</h3>
+          </div>
+          <div className="md:w-1/2 bg-brand-purple-light p-8 md:p-12">
+            <ul className="space-y-6">
+              <li className="flex items-start">
+                <PartnershipIcon />
+                <div className="ml-4">
+                  <h4 className="font-semibold text-xl text-brand-purple-dark">Parcerias de Sucesso</h4>
+                  <p className="text-brand-text-secondary">Conecte-se com talentos complementares.</p>
+                </div>
+              </li>
+              <li className="flex items-start">
+                <ShowcaseIcon />
+                <div className="ml-4">
+                  <h4 className="font-semibold text-xl text-brand-purple-dark">Divulgação do seu Trabalho</h4>
+                  <p className="text-brand-text-secondary">Construa um portfólio impactante.</p>
+                </div>
+              </li>
+              <li className="flex items-start">
+                <LearningIcon />
+                <div className="ml-4">
+                  <h4 className="font-semibold text-xl text-brand-purple-dark">Aprendizagem Prática e Rápida</h4>
+                  <p className="text-brand-text-secondary">Desenvolva habilidades em projetos reais.</p>
+                </div>
+              </li>
+            </ul>
+          </div>
         </div>
       </section>
 
