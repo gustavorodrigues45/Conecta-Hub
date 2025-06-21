@@ -1,0 +1,36 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: theme('colors.brand-background');
+  font-family: theme('fontFamily.sans'); /* This should correctly apply Inter */
+  color: theme('colors.brand-text');
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: theme('colors.brand-purple.light');
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: theme('colors.brand-purple.DEFAULT');
+}
+
+.keen-slider__slide {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* min-height: 200px; */ /* Adjust as needed */
+}
