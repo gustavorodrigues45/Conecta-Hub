@@ -5,6 +5,8 @@ import { useUser } from '../context/UserContext';
 import { LeafIcon } from '../components/icons/LeafIcon';
 import { CheckIcon } from '../components/icons/CheckIcon';
 import { CornerAccentIcon } from '../components/icons/CornerAccentIcon';
+import { useNavigate } from 'react-router-dom';
+import VagaConnectionModal from '../components/VagaConnectionModal';
 
 interface Vaga {
   vaga_id: number;
@@ -44,6 +46,19 @@ const VagaDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { vagaId } = useParams<{ vagaId: string }>();
+  const { user } = useUser();
+  const navigate = useNavigate();
+  const [isConnectionModalOpen, setIsConnectionModalOpen] = useState(false);
+  const [userProjects, setUserProjects] = useState<any[]>([]);
+
+  // Buscar projetos do usuário (dono ou colaborador) ao abrir modal
+  useEffect(() => {
+    if (isConnectionModalOpen && user?.usuario_id) {
+      axios.get(`/usuarios/${user.usuario_id}/projetos-participando`).then(res => {
+        setUserProjects(res.data);
+      }).catch(() => setUserProjects([]));
+    }
+  }, [isConnectionModalOpen, user]);
 
   useEffect(() => {
     const fetchVaga = async () => {
@@ -123,10 +138,35 @@ const VagaDetailPage: React.FC = () => {
         </div>
         {/* Botão Me Conectar */}
         <div className="flex justify-center mt-4">
-          <button className="bg-yellow-400 text-brand-purple font-bold py-3 px-12 rounded-2xl hover:bg-yellow-500 transition-colors" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 700 }}>
+          <button
+            className="bg-yellow-400 text-brand-purple font-bold py-3 px-12 rounded-2xl hover:bg-yellow-500 transition-colors"
+            style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 700 }}
+            onClick={() => setIsConnectionModalOpen(true)}
+          >
             Me Conectar!
           </button>
         </div>
+        {/* Modal de Conexão customizado para vaga */}
+        <VagaConnectionModal
+          isOpen={isConnectionModalOpen}
+          onClose={() => setIsConnectionModalOpen(false)}
+          recipientName={vaga?.usuario_nome || ''}
+          recipientId={vaga?.usuario_id || 0}
+          projetos={userProjects}
+          onSend={async ({ recipientId, reason, projetoId }) => {
+            const projetoSelecionado = userProjects.find((p: any) => p.projeto_id === projetoId);
+            await axios.post('/conexoes', {
+              senderId: user?.usuario_id,
+              recipientId,
+              projetoId,
+              projetoTitle: projetoSelecionado ? projetoSelecionado.titulo : '',
+              reason,
+              connectionType: 'vaga',
+              link: '',
+              vagaId: vaga?.vaga_id // <-- Envia o vagaId corretamente
+            });
+          }}
+        />
       </div>
 
       {/* Card Principal com Detalhes */}

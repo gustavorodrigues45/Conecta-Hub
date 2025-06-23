@@ -890,13 +890,16 @@ app.put('/conexoes/:id', async (req, res) => {
 app.get('/usuarios/:id/notificacoes', async (req, res) => {
     const { id } = req.params;
     try {
-        const result = await pool.query(`            SELECT n.*, 
+        const result = await pool.query(`
+            SELECT n.*, 
                    u.nome as usuario_nome, 
                    u.foto_perfil as usuario_foto,
-                   p.titulo as projeto_titulo
+                   p.titulo as projeto_titulo,
+                   v.titulo as vaga_titulo
             FROM notificacoes n
             JOIN usuario u ON n.usuario_origem_id = u.usuario_id
-            JOIN projeto p ON n.projeto_id = p.projeto_id
+            LEFT JOIN projeto p ON n.projeto_id = p.projeto_id
+            LEFT JOIN vagas v ON n.vaga_id IS NOT NULL AND n.vaga_id = v.vaga_id
             WHERE n.usuario_destino_id = $1
             ORDER BY n.data_criacao DESC
         `, [id]);
@@ -919,21 +922,36 @@ app.delete('/notificacoes/:id', async (req, res) => {
 
 // --- CONEXÃO ENTRE USUÁRIOS ---
 app.post('/conexoes', async (req, res) => {
-    const { senderId, recipientId, projetoId, reason, link, connectionType } = req.body;
+    const { senderId, recipientId, projetoId, reason, link, connectionType, vagaId } = req.body;
     try {
+        // Busca o título da vaga se for conexão de vaga
+        let vagaTitulo = null;
+        if (connectionType === 'vaga' && vagaId) {
+            const vagaRes = await pool.query('SELECT titulo FROM vagas WHERE vaga_id = $1', [vagaId]);
+            if (vagaRes.rows.length > 0) {
+                vagaTitulo = vagaRes.rows[0].titulo;
+            }
+        }
+        // Removido vaga_id do INSERT em user_connections
         const result = await pool.query(
             `INSERT INTO user_connections 
                 (sender_id, recipient_id, projeto_id, reason, link, connection_type) 
              VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
             [senderId, recipientId, projetoId, reason, link, connectionType]
         );
-        // Criar notificação apenas de conexão
-        await pool.query(
-            `INSERT INTO notificacoes 
-                (tipo, usuario_origem_id, usuario_destino_id, projeto_id, mensagem) 
-             VALUES ($1, $2, $3, $4, $5)`,
-            ['conexao', senderId, recipientId, projetoId, reason]
+        // Evitar duplicidade de notificações de conexão
+        const notifExists = await pool.query(
+            `SELECT 1 FROM notificacoes WHERE tipo = 'conexao' AND usuario_origem_id = $1 AND usuario_destino_id = $2 AND projeto_id = $3 AND vaga_id ${vagaId ? '= $4' : 'IS NULL'}` + (vagaId ? '' : ''),
+            vagaId ? [senderId, recipientId, projetoId, vagaId] : [senderId, recipientId, projetoId]
         );
+        if (notifExists.rows.length === 0) {
+            await pool.query(
+                `INSERT INTO notificacoes 
+                    (tipo, usuario_origem_id, usuario_destino_id, projeto_id, mensagem, vaga_id, vaga_titulo) 
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                ['conexao', senderId, recipientId, projetoId, reason, vagaId || null, vagaTitulo]
+            );
+        }
         res.status(201).json(result.rows[0]);
     } catch (err) {
         console.error('Erro ao criar conexão:', err);
@@ -1201,6 +1219,34 @@ app.get('/projetos/:id/participantes', async (req, res) => {
         res.json(participantes);
     } catch (err) {
         res.status(500).json({ error: 'Erro ao buscar participantes' });
+    }
+});
+
+// Rota para buscar todos os projetos onde o usuário é dono ou colaborador
+app.get('/usuarios/:id/projetos-participando', async (req, res) => {
+    const { id } = req.params;
+    try {
+        // Projetos onde é dono
+        const projetosDono = await pool.query(
+            'SELECT * FROM projeto WHERE usuario_id = $1',
+            [id]
+        );
+        // Projetos onde é colaborador
+        const projetosColaborador = await pool.query(
+            `SELECT p.* FROM usuario_projeto up
+             JOIN projeto p ON up.projeto_id = p.projeto_id
+             WHERE up.usuario_id = $1`,
+            [id]
+        );
+        // Junta e remove duplicados (caso o usuário seja dono e colaborador)
+        const todosProjetos = [...projetosDono.rows, ...projetosColaborador.rows]
+            .filter((proj, idx, arr) =>
+                arr.findIndex(p => p.projeto_id === proj.projeto_id) === idx
+            );
+        res.json(todosProjetos);
+    } catch (err) {
+        console.error('Erro ao buscar projetos participando:', err);
+        res.status(500).json({ error: 'Erro ao buscar projetos participando' });
     }
 });
 
